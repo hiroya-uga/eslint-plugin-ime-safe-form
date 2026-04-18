@@ -20,6 +20,8 @@ export default [imeSafeForm.configs.recommended];
 
 For ESLint 8 / `.eslintrc` setup and advanced configuration, see [Usage](#usage).
 
+Try it in the [playground](https://github.com/hiroya-uga/eslint-plugin-ime-safe-form-playground).
+
 ## Why
 
 When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, Japanese (and other CJK) users experience broken input: pressing Enter to **confirm IME candidates** accidentally triggers form submission before the composition is complete.
