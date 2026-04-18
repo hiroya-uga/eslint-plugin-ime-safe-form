@@ -108,6 +108,33 @@ module.exports = {
 };
 ```
 
+### TypeScript / TSX
+
+Install `@typescript-eslint/parser` and set it as the parser for TypeScript files:
+
+```js
+// eslint.config.js (ESLint 9)
+import imeSafeForm from 'eslint-plugin-ime-safe-form';
+import tsParser from '@typescript-eslint/parser';
+
+export default [
+  {
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: { parser: tsParser },
+  },
+  imeSafeForm.configs.recommended,
+];
+```
+
+```js
+// .eslintrc.js (ESLint 8)
+module.exports = {
+  parser: '@typescript-eslint/parser',
+  plugins: ['ime-safe-form'],
+  extends: ['plugin:ime-safe-form/recommended:legacy'],
+};
+```
+
 ## Rules
 
 | Rule | Description | Recommended |
