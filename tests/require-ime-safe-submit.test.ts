@@ -30,31 +30,48 @@ tester.run("require-ime-safe-submit", rule, {
     {
       code: `<form onSubmit={(e) => { e.preventDefault(); send(); }} />`,
     },
-    // ── isComposing guard (keydown / keyup) — IME-aware, not flagged ─────────
+    // ── isComposing + keyCode 229 guard (default) ────────────────────────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); });`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submitForm(); }} />;`,
+    },
+    {
+      code: `input.onkeydown = (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); };`,
+    },
+    // ── isComposing guard only (checkKeyCodeForSafari: false) ────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     {
       code: `<input onKeyDown={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submitForm(); }} />;`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     {
       code: `input.onkeydown = (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); };`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // isComposing guard nested inside the Enter check
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { if (e.isComposing) return; submit(); } });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // isComposing in logical AND: !e.isComposing && e.key === 'Enter'
     {
       code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // isComposing in logical AND (reversed): e.key === 'Enter' && !e.isComposing
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // isComposing guard in outer if block (wraps the Enter check)
     {
       code: `input.addEventListener('keydown', (e) => { if (!e.isComposing) { if (e.key === 'Enter') submit(); } });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── Enter check inside a nested function — out of scope ──────────────────
     {
@@ -94,21 +111,26 @@ tester.run("require-ime-safe-submit", rule, {
     // ── isComposing guard with switch statement ───────────────────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; switch(e.key) { case 'Enter': submit(); break; } });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── onkeyup assignment with isComposing guard ────────────────────────────
     {
       code: `input.onkeyup = (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); };`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── isComposing guard with legacy keyCode / which ────────────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.keyCode === 13) submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.which == 13) submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── JSX onKeyUp with isComposing guard ───────────────────────────────────
     {
       code: `<input onKeyUp={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submitForm(); }} />;`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── onkeypress assignment without Enter check ────────────────────────────
     {
@@ -117,6 +139,7 @@ tester.run("require-ime-safe-submit", rule, {
     // ── isComposing guard with switch statement (keyup) ───────────────────────
     {
       code: `input.addEventListener('keyup', (e) => { if (e.isComposing) return; switch(e.key) { case 'Enter': submit(); break; } });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── JSX onKeyPress without Enter check ───────────────────────────────────
     {
@@ -125,13 +148,16 @@ tester.run("require-ime-safe-submit", rule, {
     // ── !== / != early-return pattern with isComposing guard ─────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key !== 'Enter') return; submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.keyCode != 13) return; submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── window.addEventListener — same rules apply ────────────────────────────
     {
       code: `window.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
     },
     // ── Known limitation: isComposing in if-test without return ───────────────
     // The rule accepts any IfStatement whose test mentions isComposing.
@@ -139,6 +165,32 @@ tester.run("require-ime-safe-submit", rule, {
     // but detecting that requires data-flow analysis beyond this rule's scope.
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) console.log("composing"); if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    // checkKeyCodeForSafari: true (explicit) — keyup variant
+    {
+      code: `input.addEventListener('keyup', (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: true }],
+    },
+    // separate if statements for each guard
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.keyCode === 229) return; if (e.key === 'Enter') submit(); });`,
+    },
+    // reversed operand: 229 === e.keyCode
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing || 229 === e.keyCode) return; if (e.key === 'Enter') submit(); });`,
+    },
+    // onkeyup assignment
+    {
+      code: `input.onkeyup = (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); };`,
+    },
+    // JSX onKeyUp
+    {
+      code: `<input onKeyUp={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); }} />;`,
+    },
+    // no Enter check — no error even without keyCode 229
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Escape') close(); });`,
     },
   ],
 
@@ -494,6 +546,40 @@ tester.run("require-ime-safe-submit", rule, {
     {
       code: `<input onKeyPress={function(e) { if (e.key === 'Enter') submitForm(); }} />;`,
       errors: [{ messageId: "keypressProhibited", data: { eventName: "onKeyPress" } }],
+    },
+    // ── isComposing only (default checkKeyCodeForSafari: true) ───────────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: "requireKeyCode229" }],
+    },
+    {
+      code: `input.addEventListener('keyup', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: "requireKeyCode229" }],
+    },
+    {
+      code: `input.onkeydown = (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); };`,
+      errors: [{ messageId: "requireKeyCode229" }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: "requireKeyCode229" }],
+    },
+    // isComposing with switch
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; switch(e.key) { case 'Enter': submit(); break; } });`,
+      errors: [{ messageId: "requireKeyCode229" }],
+    },
+    // checkKeyCodeForSafari: true (explicit) — same as default
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: true }],
+      errors: [{ messageId: "requireKeyCode229" }],
+    },
+    // no isComposing at all → requireImeSafeSubmit (not requireKeyCode229)
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: true }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
     },
     // ── window.addEventListener ───────────────────────────────────────────────
     {

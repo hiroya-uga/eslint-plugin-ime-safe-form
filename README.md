@@ -29,9 +29,9 @@ When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, 
 There are two correct approaches:
 
 ```js
-// ✅ Option 1: guard with e.isComposing
+// ✅ Option 1: guard with e.isComposing + e.keyCode === 229 (covers Safari)
 input.addEventListener('keydown', (e) => {
-  if (e.isComposing) return;   // skip during IME composition
+  if (e.isComposing || e.keyCode === 229) return;
   if (e.key === 'Enter') submit();
 });
 
@@ -47,7 +47,9 @@ input.addEventListener('keydown', (e) => {
 });
 ```
 
-`keypress` is **prohibited entirely** as it is deprecated and unreliable for IME input.
+`keypress` is **prohibited entirely** as it is deprecated.
+
+> **Safari note:** In Safari, `compositionend` fires before `keydown`, so `e.isComposing` is `false` when Enter confirms IME. The `e.keyCode === 229` check covers this gap. To require only `e.isComposing` (if Safari support is not needed), set `{ checkKeyCodeForSafari: false }` in the rule options.
 
 ## Installation
 

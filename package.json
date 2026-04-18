@@ -1,7 +1,7 @@
 {
   "name": "eslint-plugin-ime-safe-form",
   "description": "ESLint plugin to enforce IME-safe form submission — requires e.isComposing guard or form submit event instead of Enter key detection in keydown/keyup handlers",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Hiroya Uga",
   "bugs": {
     "url": "https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/issues"

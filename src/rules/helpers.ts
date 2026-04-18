@@ -147,6 +147,42 @@ const isEnterKeyNode = (node: Node) => isEnterKeyBinaryExpression(node) || isEnt
 export const containsEnterKeyCheck = (node: Node | null | undefined) => walkAst({ predicate: isEnterKeyNode, node });
 
 /**
+ * Check if a BinaryExpression is a keyCode === 229 check (Safari IME guard):
+ *   e.keyCode === 229  /  e.keyCode == 229  (and reversed operand order)
+ */
+const isKeyCode229BinaryExpression = (node: Node) => {
+  if (node.type !== "BinaryExpression") {
+    return false;
+  }
+  const { operator, left, right } = node;
+  if (operator !== "===" && operator !== "==") {
+    return false;
+  }
+  return (
+    (isMemberWithProp({ node: left, propName: "keyCode" }) && isLiteral({ node: right, value: 229 })) ||
+    (isMemberWithProp({ node: right, propName: "keyCode" }) && isLiteral({ node: left, value: 229 }))
+  );
+};
+
+/**
+ * Returns true if the handler body contains an IfStatement whose condition
+ * includes a keyCode === 229 check — the Safari IME workaround.
+ * In Safari, compositionend fires before the final keydown, so e.isComposing
+ * is already false when Enter is pressed to confirm IME. keyCode 229 covers
+ * this gap (deprecated but still reliable for this purpose).
+ */
+export const hasKeyCode229Check = (node: Node | null | undefined) =>
+  walkAst({
+    predicate: (n) =>
+      n.type === "IfStatement" &&
+      walkAst({
+        predicate: (child) => isKeyCode229BinaryExpression(child),
+        node: n.test,
+      }),
+    node,
+  });
+
+/**
  * Returns true if the handler body contains an IfStatement whose condition
  * references `e.isComposing` — the author is handling IME input correctly.
  * Checking only IfStatement tests (rather than any `.isComposing` reference)

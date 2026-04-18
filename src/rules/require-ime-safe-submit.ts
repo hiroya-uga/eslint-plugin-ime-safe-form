@@ -5,6 +5,7 @@ import {
   DEPRECATED_JSX_KEY_EVENTS,
   DEPRECATED_KEY_EVENTS,
   hasIsComposingCheck,
+  hasKeyCode229Check,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
 } from "./helpers";
@@ -16,6 +17,9 @@ const messages = {
     "Add 'if (e.isComposing) return;' before the check, or handle submission via the form's 'submit' event.",
   keypressProhibited:
     "'keypress' is deprecated. Use 'keydown' with an e.isComposing guard instead, or handle submission via the form's 'submit' event.",
+  requireKeyCode229:
+    "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. " +
+    "Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
 
 const rule: Rule.RuleModule = {
@@ -28,10 +32,28 @@ const rule: Rule.RuleModule = {
       url: "https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-submit.md",
     },
     messages,
-    schema: [],
+    schema: [
+      {
+        type: "object",
+        properties: {
+          checkKeyCodeForSafari: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
 
   create(context) {
+    const rawOption: unknown = context.options[0];
+    // Default true: only opt out when explicitly { checkKeyCodeForSafari: false }
+    const checkKeyCodeForSafari = !(
+      rawOption !== null &&
+      rawOption !== undefined &&
+      typeof rawOption === "object" &&
+      "checkKeyCodeForSafari" in rawOption &&
+      (rawOption as Record<string, unknown>)["checkKeyCodeForSafari"] === false
+    );
+
     /**
      * @param allowIsComposingGuard
      *   true  — keydown/keyup: an e.isComposing guard exempts the handler.
@@ -58,6 +80,12 @@ const rule: Rule.RuleModule = {
       const body = handlerNode.body;
 
       if (allowIsComposingGuard && hasIsComposingCheck(body)) {
+        if (checkKeyCodeForSafari && !hasKeyCode229Check(body) && containsEnterKeyCheck(body)) {
+          context.report({
+            node: reportNode,
+            messageId: "requireKeyCode229",
+          });
+        }
         return;
       }
 

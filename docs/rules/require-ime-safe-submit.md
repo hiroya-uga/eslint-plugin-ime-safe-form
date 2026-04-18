@@ -76,15 +76,10 @@ input.addEventListener('keypress', (e) => {
 ```js
 /* eslint ime-safe-form/require-ime-safe-submit: "warn" */
 
-// ✅ Option 1: e.isComposing guard
+// ✅ Option 1: e.isComposing + e.keyCode === 229 guard (covers Safari)
 input.addEventListener('keydown', (e) => {
-  if (e.isComposing) return;
+  if (e.isComposing || e.keyCode === 229) return;
   if (e.key === 'Enter') submit();
-});
-
-// ✅ Also recognised: isComposing in logical AND
-input.addEventListener('keydown', (e) => {
-  if (!e.isComposing && e.key === 'Enter') submit();
 });
 
 // ✅ Option 2: use the form's submit event
@@ -97,11 +92,17 @@ form.addEventListener('submit', (e) => {
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeDialog();
 });
+
+// ✅ e.isComposing alone — when checkKeyCodeForSafari: false is set
+input.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  if (e.key === 'Enter') submit();
+});
 ```
 
 ```jsx
-// ✅ JSX — isComposing guard
-<input onKeyDown={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submitForm(); }} />
+// ✅ JSX — isComposing + keyCode 229 guard
+<input onKeyDown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submitForm(); }} />
 
 // ✅ JSX — onSubmit is correct
 <form onSubmit={(e) => { e.preventDefault(); submitForm(); }}>
@@ -126,7 +127,8 @@ input.addEventListener('keydown', (e) => {
 
 | Pattern | Reason |
 |---|---|
-| `e.isComposing` guard in `keydown`/`keyup` (in `if` test, including `&&` / `\|\|`) | Author already handles IME correctly |
+| `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
+| `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
 | Enter check inside a nested function | Out of scope for the keydown handler |
 | Named function reference (`addEventListener('keydown', fn)`) | Cannot statically analyze external function bodies |
 
@@ -143,6 +145,42 @@ input.addEventListener('keydown', (e) => {
     if (key === 'Enter') submit(); // missed by the rule
   });
   ```
+
+## Options
+
+### `checkKeyCodeForSafari` (default: `true`)
+
+In Safari, `compositionend` fires **before** the final `keydown`, so `e.isComposing` is already `false` when Enter is pressed to confirm IME. Setting this option to `true` additionally requires `e.keyCode === 229` alongside `e.isComposing`:
+
+```js
+// eslint.config.js
+export default [
+  {
+    ...imeSafeForm.configs.recommended,
+    rules: {
+      "ime-safe-form/require-ime-safe-submit": ["warn", { checkKeyCodeForSafari: true }],
+    },
+  },
+];
+```
+
+With `checkKeyCodeForSafari: true`, only the combined guard is accepted:
+
+```js
+// ✅ Correct — covers both standard browsers and Safari
+input.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Enter') submit();
+});
+
+// ❌ Flagged — e.isComposing alone misses Safari's event order
+input.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  if (e.key === 'Enter') submit();
+});
+```
+
+> **Note:** `e.keyCode` is deprecated but remains the only reliable way to detect IME composition in Safari's event order. Set `checkKeyCodeForSafari: false` if Safari support is not a concern — `e.isComposing` alone will then be accepted.
 
 ## When Not to Use
 
