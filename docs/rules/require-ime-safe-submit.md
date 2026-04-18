@@ -4,7 +4,7 @@ Require IME-safe form submission. Disallow Enter key detection in `keydown`/`key
 
 ## Rule Details
 
-When a `keydown` or `keyup` handler checks for the Enter key without guarding against IME composition, Japanese, Chinese, Korean, and other CJK users experience broken input: pressing Enter to confirm IME candidates fires `keydown` before `compositionend`, causing accidental form submission mid-input.
+When a `keydown` or `keyup` handler checks for the Enter key without guarding against IME composition, users typing with an IME experience broken input: pressing Enter to confirm IME candidates fires `keydown` before `compositionend`, causing accidental form submission mid-input.
 
 This rule requires one of two correct approaches:
 

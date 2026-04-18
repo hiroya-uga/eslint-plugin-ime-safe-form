@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/eslint-plugin-ime-safe-form)](https://www.npmjs.com/package/eslint-plugin-ime-safe-form)
 [![license](https://img.shields.io/npm/l/eslint-plugin-ime-safe-form)](./LICENSE)
 
-ESLint plugin to enforce IME-safe form submission for Japanese, Chinese, Korean, and other CJK users.
+ESLint plugin to enforce IME-safe form submission for users who type with an IME (Input Method Editor).
 
 ## Quick Start
 
@@ -24,7 +24,7 @@ Try it in the [playground](https://github.com/hiroya-uga/eslint-plugin-ime-safe-
 
 ## Why
 
-When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, Japanese (and other CJK) users experience broken input: pressing Enter to **confirm IME candidates** accidentally triggers form submission before the composition is complete.
+When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, users typing with an IME experience broken input: pressing Enter to **confirm IME candidates** accidentally triggers form submission before the composition is complete.
 
 There are two correct approaches:
 
@@ -41,7 +41,7 @@ form.addEventListener('submit', (e) => {
   submit();
 });
 
-// ❌ Bad — breaks IME input for Japanese/Chinese/Korean users
+// ❌ Bad — breaks IME input
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') submit();
 });

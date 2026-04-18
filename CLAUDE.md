@@ -5,7 +5,7 @@
 **Package name:** `eslint-plugin-ime-safe-form`
 **Rule:** `ime-safe-form/require-ime-safe-submit`
 
-An ESLint plugin that prevents accidental form submission during IME (Input Method Editor) composition. Japanese, Chinese, Korean users use IME to input characters. Pressing Enter to confirm an IME candidate fires `keydown` _before_ `compositionend`, which causes form submission mid-input if the handler blindly checks `e.key === 'Enter'`.
+An ESLint plugin that prevents accidental form submission during IME (Input Method Editor) composition. Users typing with an IME use it to input characters. Pressing Enter to confirm an IME candidate fires `keydown` _before_ `compositionend`, which causes form submission mid-input if the handler blindly checks `e.key === 'Enter'`.
 
 ## The Problem Being Solved
 
