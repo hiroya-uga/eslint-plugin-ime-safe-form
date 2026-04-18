@@ -11,7 +11,7 @@ This rule requires one of two correct approaches:
 1. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
 2. **Form `submit` event** — fires only after composition completes; no guard needed
 
-`keypress` is prohibited entirely because it is deprecated and unreliable for IME input regardless of any guard.
+`keypress` is prohibited entirely because it is deprecated. Use `keydown` with an `e.isComposing` guard instead.
 
 ### Examples of **incorrect** code
 

@@ -178,7 +178,7 @@ const rule: Rule.RuleModule = {
         "Enter key detected in '{{eventName}}' without an IME composition guard. " +
         "Add 'if (e.isComposing) return;' before the check, or handle submission via the form's 'submit' event.",
       keypressProhibited:
-        "'keypress' is deprecated and unreliable for IME input. Use the form's 'submit' event instead.",
+        "'keypress' is deprecated. Use 'keydown' with an e.isComposing guard instead, or handle submission via the form's 'submit' event.",
     },
     schema: [],
   },
