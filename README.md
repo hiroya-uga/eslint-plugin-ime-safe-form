@@ -1,5 +1,8 @@
 # eslint-plugin-ime-safe-form
 
+[![npm version](https://img.shields.io/npm/v/eslint-plugin-ime-safe-form)](https://www.npmjs.com/package/eslint-plugin-ime-safe-form)
+[![license](https://img.shields.io/npm/l/eslint-plugin-ime-safe-form)](./LICENSE)
+
 ESLint plugin to enforce IME-safe form submission for Japanese, Chinese, Korean, and other CJK users.
 
 ## Why
