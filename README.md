@@ -5,6 +5,21 @@
 
 ESLint plugin to enforce IME-safe form submission for Japanese, Chinese, Korean, and other CJK users.
 
+## Quick Start
+
+```sh
+npm install --save-dev eslint-plugin-ime-safe-form
+```
+
+```js
+// eslint.config.js (ESLint 9)
+import imeSafeForm from 'eslint-plugin-ime-safe-form';
+
+export default [imeSafeForm.configs.recommended];
+```
+
+For ESLint 8 / `.eslintrc` setup and advanced configuration, see [Usage](#usage).
+
 ## Why
 
 When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, Japanese (and other CJK) users experience broken input: pressing Enter to **confirm IME candidates** accidentally triggers form submission before the composition is complete.
