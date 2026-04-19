@@ -6,10 +6,11 @@ Require IME-safe form submission. Disallow Enter key detection in `keydown`/`key
 
 When a `keydown` or `keyup` handler checks for the Enter key without guarding against IME composition, users typing with an IME experience broken input: pressing Enter to confirm IME candidates fires `keydown` before `compositionend`, causing accidental form submission mid-input.
 
-This rule requires one of two correct approaches:
+This rule requires one of three correct approaches:
 
 1. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
 2. **Form `submit` event** — fires only after composition completes; no guard needed
+3. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside Enter, IME composition cannot be active; no guard is needed
 
 `keypress` is prohibited entirely because it is deprecated. Use `keydown` with an `e.isComposing` guard instead.
 
@@ -61,6 +62,16 @@ input.addEventListener('keypress', (e) => {
   if (e.isComposing) return;
   if (e.key === 'Enter') submit();
 });
+
+// Modifier negation is not a guard — IME Enter has shiftKey === false, so !e.shiftKey is true
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) submit();
+});
+
+// OR with modifier is not a guard — plain Enter (no modifier) still fires
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.ctrlKey) submit();
+});
 ```
 
 ```jsx
@@ -86,6 +97,23 @@ input.addEventListener('keydown', (e) => {
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   submit();
+});
+
+// ✅ Option 3: modifier key — IME cannot be composing when Ctrl/Meta/Shift/Alt is held
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.ctrlKey) submit();
+});
+
+// ✅ Multiple modifiers with || are also recognised
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
+});
+
+// ✅ Outer if with modifier is also recognised
+input.addEventListener('keydown', (e) => {
+  if (e.ctrlKey) {
+    if (e.key === 'Enter') submit();
+  }
 });
 
 // ✅ keydown for non-submission purposes is fine
@@ -130,6 +158,8 @@ input.addEventListener('keydown', (e) => {
 | `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
 | `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
 | Guard function call in `IfStatement` (with `guardFunctions` option) | Function is declared as an equivalent IME guard |
+| Enter key check combined with a modifier via `&&` (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`) | IME cannot be composing while a modifier key is held |
+| Outer `if` whose test is a positive modifier expression, Enter check inside the body | Same reasoning — modifier held means no IME composition |
 | Enter check inside a nested function | Out of scope for the keydown handler |
 | Named function reference (`addEventListener('keydown', fn)`) | Cannot statically analyze external function bodies |
 

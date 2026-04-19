@@ -202,6 +202,91 @@ export const hasIsComposingCheck = (node: Node | null | undefined) =>
     node,
   });
 
+const MODIFIER_KEY_PROPS = ['ctrlKey', 'metaKey', 'shiftKey', 'altKey'] as const;
+
+const isModifierKeyMemberExpression = (node: Node) =>
+  MODIFIER_KEY_PROPS.some((prop) => isMemberWithProp({ node, propName: prop }));
+
+/**
+ * Returns true only for expressions that positively assert a modifier key is
+ * held — i.e., the IME cannot be composing. Negated checks like `!e.ctrlKey`
+ * are intentionally rejected.
+ *
+ *   e.ctrlKey                   → true
+ *   e.ctrlKey || e.metaKey      → true
+ *   !e.ctrlKey                  → false  (does not prevent IME)
+ *   e.key === 'Enter'           → false
+ */
+const isPositiveModifierExpression = (node: Node): boolean => {
+  if (isModifierKeyMemberExpression(node)) {
+    return true;
+  }
+  if (node.type === 'LogicalExpression' && node.operator === '||') {
+    return isPositiveModifierExpression(node.left) && isPositiveModifierExpression(node.right);
+  }
+  return false;
+};
+
+/**
+ * Returns true if the LogicalExpression subtree (connected by &&) has one side
+ * containing an Enter key check and the other side being a positive modifier
+ * expression. Recursively handles chained &&.
+ *
+ *   e.key === 'Enter' && e.ctrlKey               → true
+ *   e.ctrlKey && e.key === 'Enter'               → true
+ *   e.key === 'Enter' && (e.ctrlKey || e.metaKey) → true
+ *   e.key === 'Enter' && !e.shiftKey              → false (!modifier ≠ IME guard)
+ */
+const andChainHasEnterWithModifier = (node: Node): boolean => {
+  if (node.type !== 'LogicalExpression' || node.operator !== '&&') {
+    return false;
+  }
+  const { left, right } = node;
+  const leftHasEnter = walkAst({ predicate: isEnterKeyNode, node: left });
+  const rightHasEnter = walkAst({ predicate: isEnterKeyNode, node: right });
+
+  if (leftHasEnter && isPositiveModifierExpression(right)) {
+    return true;
+  }
+  if (rightHasEnter && isPositiveModifierExpression(left)) {
+    return true;
+  }
+
+  return andChainHasEnterWithModifier(left) || andChainHasEnterWithModifier(right);
+};
+
+/**
+ * Returns true if the handler body contains a modifier-key guard that makes
+ * IME composition impossible. When a modifier key (Ctrl, Meta, Shift, Alt) is
+ * held, the IME cannot be in composition state, so e.isComposing is always
+ * false and no guard is needed.
+ *
+ * Pattern A — Enter + modifier in the same && condition:
+ *   if (e.key === 'Enter' && e.ctrlKey) …
+ *   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) …
+ *
+ * Pattern B — outer if whose test is a positive modifier expression, with an
+ * Enter check inside the body:
+ *   if (e.ctrlKey) { if (e.key === 'Enter') … }
+ */
+export const hasModifierKeyGuard = (node: Node | null | undefined) =>
+  walkAst({
+    predicate: (candidateNode) => {
+      if (candidateNode.type !== 'IfStatement') {
+        return false;
+      }
+
+      const { test, consequent } = candidateNode;
+
+      if (andChainHasEnterWithModifier(test)) {
+        return true;
+      }
+
+      return isPositiveModifierExpression(test) && containsEnterKeyCheck(consequent);
+    },
+    node,
+  });
+
 /**
  * Returns true if the handler body contains an IfStatement whose condition
  * calls one of the specified guard function names. This allows users to
