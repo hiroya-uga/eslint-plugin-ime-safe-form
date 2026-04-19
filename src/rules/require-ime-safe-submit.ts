@@ -1,5 +1,5 @@
-import type { Rule } from "eslint";
-import type { BaseNode, Node } from "estree";
+import type { Rule } from 'eslint';
+import type { BaseNode, Node } from 'estree';
 import {
   containsEnterKeyCheck,
   DEPRECATED_JSX_KEY_EVENTS,
@@ -8,8 +8,8 @@ import {
   hasKeyCode229Check,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
-} from "./helpers";
-import type { JSXAttribute } from "./helpers";
+} from './helpers';
+import type { JSXAttribute } from './helpers';
 
 const messages = {
   requireImeSafeSubmit:
@@ -18,25 +18,25 @@ const messages = {
   keypressProhibited:
     "'keypress' is deprecated. Use 'keydown' with an e.isComposing guard instead, or handle submission via the form's 'submit' event.",
   requireKeyCode229:
-    "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. " +
+    'In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. ' +
     "Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
 
 const rule: Rule.RuleModule = {
   meta: {
-    type: "suggestion",
+    type: 'suggestion',
     docs: {
       description:
-        "Require IME-safe form submission. Disallow Enter key detection in keydown/keyup without an e.isComposing guard, and prohibit keypress entirely.",
+        'Require IME-safe form submission. Disallow Enter key detection in keydown/keyup without an e.isComposing guard, and prohibit keypress entirely.',
       recommended: true,
-      url: "https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-submit.md",
+      url: 'https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-submit.md',
     },
     messages,
     schema: [
       {
-        type: "object",
+        type: 'object',
         properties: {
-          checkKeyCodeForSafari: { type: "boolean" },
+          checkKeyCodeForSafari: { type: 'boolean' },
         },
         additionalProperties: false,
       },
@@ -49,9 +49,9 @@ const rule: Rule.RuleModule = {
     const checkKeyCodeForSafari = !(
       rawOption !== null &&
       rawOption !== undefined &&
-      typeof rawOption === "object" &&
-      "checkKeyCodeForSafari" in rawOption &&
-      (rawOption as Record<string, unknown>)["checkKeyCodeForSafari"] === false
+      typeof rawOption === 'object' &&
+      'checkKeyCodeForSafari' in rawOption &&
+      (rawOption as Record<string, unknown>)['checkKeyCodeForSafari'] === false
     );
 
     /**
@@ -73,7 +73,7 @@ const rule: Rule.RuleModule = {
       if (handlerNode === null || handlerNode === undefined) {
         return;
       }
-      if (handlerNode.type !== "ArrowFunctionExpression" && handlerNode.type !== "FunctionExpression") {
+      if (handlerNode.type !== 'ArrowFunctionExpression' && handlerNode.type !== 'FunctionExpression') {
         return;
       }
 
@@ -83,7 +83,7 @@ const rule: Rule.RuleModule = {
         if (checkKeyCodeForSafari && !hasKeyCode229Check(body) && containsEnterKeyCheck(body)) {
           context.report({
             node: reportNode,
-            messageId: "requireKeyCode229",
+            messageId: 'requireKeyCode229',
           });
         }
         return;
@@ -92,7 +92,7 @@ const rule: Rule.RuleModule = {
       if (containsEnterKeyCheck(body)) {
         context.report({
           node: reportNode,
-          messageId: allowIsComposingGuard ? "requireImeSafeSubmit" : "keypressProhibited",
+          messageId: allowIsComposingGuard ? 'requireImeSafeSubmit' : 'keypressProhibited',
           data: { eventName },
         });
       }
@@ -103,9 +103,9 @@ const rule: Rule.RuleModule = {
       CallExpression(node) {
         const { callee, arguments: args } = node;
         if (
-          callee.type !== "MemberExpression" ||
-          callee.property.type !== "Identifier" ||
-          callee.property.name !== "addEventListener" ||
+          callee.type !== 'MemberExpression' ||
+          callee.property.type !== 'Identifier' ||
+          callee.property.name !== 'addEventListener' ||
           args.length < 2
         ) {
           return;
@@ -115,7 +115,7 @@ const rule: Rule.RuleModule = {
         if (eventArg === undefined) {
           return;
         }
-        if (eventArg.type !== "Literal" || typeof eventArg.value !== "string" || !KEY_EVENTS.has(eventArg.value)) {
+        if (eventArg.type !== 'Literal' || typeof eventArg.value !== 'string' || !KEY_EVENTS.has(eventArg.value)) {
           return;
         }
 
@@ -130,12 +130,12 @@ const rule: Rule.RuleModule = {
       // Pattern 2: element.onkeydown / onkeyup / onkeypress = handler
       AssignmentExpression(node) {
         const { left, right } = node;
-        if (left.type !== "MemberExpression" || left.computed || left.property.type !== "Identifier") {
+        if (left.type !== 'MemberExpression' || left.computed || left.property.type !== 'Identifier') {
           return;
         }
 
         const propName = left.property.name.toLowerCase();
-        if (propName !== "onkeydown" && propName !== "onkeyup" && propName !== "onkeypress") {
+        if (propName !== 'onkeydown' && propName !== 'onkeyup' && propName !== 'onkeypress') {
           return;
         }
 
@@ -150,12 +150,12 @@ const rule: Rule.RuleModule = {
       // Pattern 3: JSX onKeyDown / onKeyUp / onKeyPress
       JSXAttribute(rawNode: unknown) {
         const node = rawNode as JSXAttribute;
-        if (node.name.type !== "JSXIdentifier" || !JSX_KEY_EVENTS.has(node.name.name)) {
+        if (node.name.type !== 'JSXIdentifier' || !JSX_KEY_EVENTS.has(node.name.name)) {
           return;
         }
 
         const value = node.value;
-        if (value?.type !== "JSXExpressionContainer") {
+        if (value?.type !== 'JSXExpressionContainer') {
           return;
         }
 

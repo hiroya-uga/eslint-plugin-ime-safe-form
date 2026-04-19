@@ -1,41 +1,41 @@
-import type { BaseNode, Node } from "estree";
+import type { BaseNode, Node } from 'estree';
 
 // ESLint does not ship JSX node types, so we define the minimal shape we need.
 export interface JSXIdentifier extends BaseNode {
-  type: "JSXIdentifier";
+  type: 'JSXIdentifier';
   name: string;
 }
 
 export interface JSXExpressionContainer extends BaseNode {
-  type: "JSXExpressionContainer";
+  type: 'JSXExpressionContainer';
   expression: Node | null;
 }
 
 export interface JSXAttribute extends BaseNode {
-  type: "JSXAttribute";
+  type: 'JSXAttribute';
   name: JSXIdentifier;
   value: JSXExpressionContainer | null;
 }
 
-export const FUNCTION_TYPES = new Set(["FunctionExpression", "ArrowFunctionExpression", "FunctionDeclaration"]);
+export const FUNCTION_TYPES = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'FunctionDeclaration']);
 
-const ENTER_STRING_PROPS = ["key", "code"] as const;
-const LEGACY_CODE_PROPS = ["keyCode", "which"] as const;
+const ENTER_STRING_PROPS = ['key', 'code'] as const;
+const LEGACY_CODE_PROPS = ['keyCode', 'which'] as const;
 
-export const KEY_EVENTS = new Set(["keydown", "keyup", "keypress"]);
+export const KEY_EVENTS = new Set(['keydown', 'keyup', 'keypress']);
 // keypress is deprecated: e.isComposing does not exempt it from the rule.
-export const DEPRECATED_KEY_EVENTS = new Set(["keypress"]);
-export const JSX_KEY_EVENTS = new Set(["onKeyDown", "onKeyUp", "onKeyPress"]);
-export const DEPRECATED_JSX_KEY_EVENTS = new Set(["onKeyPress"]);
+export const DEPRECATED_KEY_EVENTS = new Set(['keypress']);
+export const JSX_KEY_EVENTS = new Set(['onKeyDown', 'onKeyUp', 'onKeyPress']);
+export const DEPRECATED_JSX_KEY_EVENTS = new Set(['onKeyPress']);
 
 const isMemberWithProp = ({ node, propName }: { node: Node; propName: string }) =>
-  node.type === "MemberExpression" &&
+  node.type === 'MemberExpression' &&
   !node.computed &&
-  node.property.type === "Identifier" &&
+  node.property.type === 'Identifier' &&
   node.property.name === propName;
 
 const isLiteral = ({ node, value }: { node: Node; value: string | number }) =>
-  node.type === "Literal" && node.value === value;
+  node.type === 'Literal' && node.value === value;
 
 /**
  * Check if a BinaryExpression is an Enter key check:
@@ -50,17 +50,17 @@ const isLiteral = ({ node, value }: { node: Node; value: string | number }) =>
  * (and reversed operand order)
  */
 const isEnterKeyBinaryExpression = (node: Node) => {
-  if (node.type !== "BinaryExpression") {
+  if (node.type !== 'BinaryExpression') {
     return false;
   }
   const { operator, left, right } = node;
-  if (operator !== "===" && operator !== "==" && operator !== "!==" && operator !== "!=") {
+  if (operator !== '===' && operator !== '==' && operator !== '!==' && operator !== '!=') {
     return false;
   }
 
   const isEnterString = ({ left, right }: { left: Node; right: Node }) =>
     ENTER_STRING_PROPS.some((p) => isMemberWithProp({ node: left, propName: p })) &&
-    isLiteral({ node: right, value: "Enter" });
+    isLiteral({ node: right, value: 'Enter' });
   const isEnterCode = ({ left, right }: { left: Node; right: Node }) =>
     LEGACY_CODE_PROPS.some((p) => isMemberWithProp({ node: left, propName: p })) &&
     isLiteral({ node: right, value: 13 });
@@ -81,7 +81,7 @@ const isEnterKeyBinaryExpression = (node: Node) => {
  *   switch(e.which)   { case 13: ... }
  */
 const isEnterKeySwitchStatement = (node: Node) => {
-  if (node.type !== "SwitchStatement") {
+  if (node.type !== 'SwitchStatement') {
     return false;
   }
   const { discriminant, cases } = node;
@@ -90,7 +90,7 @@ const isEnterKeySwitchStatement = (node: Node) => {
     cases.some((c) => c.test !== null && c.test !== undefined && isLiteral({ node: c.test, value }));
 
   if (ENTER_STRING_PROPS.some((p) => isMemberWithProp({ node: discriminant, propName: p }))) {
-    return hasCase("Enter");
+    return hasCase('Enter');
   }
   if (LEGACY_CODE_PROPS.some((p) => isMemberWithProp({ node: discriminant, propName: p }))) {
     return hasCase(13);
@@ -104,12 +104,12 @@ const isEnterKeySwitchStatement = (node: Node) => {
  * `parent` back-reference added by ESLint.
  */
 const isNonFunctionNode = (value: unknown): value is Node =>
-  value !== null && typeof value === "object" && "type" in value && !FUNCTION_TYPES.has((value as Node).type);
+  value !== null && typeof value === 'object' && 'type' in value && !FUNCTION_TYPES.has((value as Node).type);
 
 const getChildNodes = (node: Node) => {
   const result: Node[] = [];
   for (const [key, value] of Object.entries(node)) {
-    if (key === "parent") {
+    if (key === 'parent') {
       continue;
     }
     if (Array.isArray(value)) {
@@ -135,7 +135,7 @@ export const walkAst = ({
   node: Node | null | undefined;
   visited?: Set<object>;
 }): boolean => {
-  if (node === null || node === undefined || typeof node !== "object" || visited.has(node)) {
+  if (node === null || node === undefined || typeof node !== 'object' || visited.has(node)) {
     return false;
   }
   visited.add(node);
@@ -151,16 +151,16 @@ export const containsEnterKeyCheck = (node: Node | null | undefined) => walkAst(
  *   e.keyCode === 229  /  e.keyCode == 229  (and reversed operand order)
  */
 const isKeyCode229BinaryExpression = (node: Node) => {
-  if (node.type !== "BinaryExpression") {
+  if (node.type !== 'BinaryExpression') {
     return false;
   }
   const { operator, left, right } = node;
-  if (operator !== "===" && operator !== "==") {
+  if (operator !== '===' && operator !== '==') {
     return false;
   }
   return (
-    (isMemberWithProp({ node: left, propName: "keyCode" }) && isLiteral({ node: right, value: 229 })) ||
-    (isMemberWithProp({ node: right, propName: "keyCode" }) && isLiteral({ node: left, value: 229 }))
+    (isMemberWithProp({ node: left, propName: 'keyCode' }) && isLiteral({ node: right, value: 229 })) ||
+    (isMemberWithProp({ node: right, propName: 'keyCode' }) && isLiteral({ node: left, value: 229 }))
   );
 };
 
@@ -174,7 +174,7 @@ const isKeyCode229BinaryExpression = (node: Node) => {
 export const hasKeyCode229Check = (node: Node | null | undefined) =>
   walkAst({
     predicate: (n) =>
-      n.type === "IfStatement" &&
+      n.type === 'IfStatement' &&
       walkAst({
         predicate: (child) => isKeyCode229BinaryExpression(child),
         node: n.test,
@@ -191,9 +191,9 @@ export const hasKeyCode229Check = (node: Node | null | undefined) =>
 export const hasIsComposingCheck = (node: Node | null | undefined) =>
   walkAst({
     predicate: (n) =>
-      n.type === "IfStatement" &&
+      n.type === 'IfStatement' &&
       walkAst({
-        predicate: (child) => isMemberWithProp({ node: child, propName: "isComposing" }),
+        predicate: (child) => isMemberWithProp({ node: child, propName: 'isComposing' }),
         node: n.test,
       }),
     node,
