@@ -179,9 +179,11 @@ input.addEventListener('keydown', (e) => {
 
 Negated calls (`if (!guardIsComposing(e))`) and calls inside compound conditions (`&&`, `||`) are also recognised.
 
-> **Note:** The rule cannot inspect the body of the guard function. It trusts that any function listed in `guardFunctions` correctly handles IME state, including the Safari `keyCode === 229` case. The `requireKeyCode229` check is skipped for these handlers.
+> [!NOTE]
+> The rule cannot inspect the body of the guard function. It trusts that any function listed in `guardFunctions` correctly handles IME state, including the Safari `keyCode === 229` case. The `requireKeyCode229` check is skipped for these handlers.
 
-> **Note:** `guardFunctions` has no effect on `keypress` handlers — `keypress` is prohibited regardless of any guard.
+> [!NOTE]
+> `guardFunctions` has no effect on `keypress` handlers — `keypress` is prohibited regardless of any guard.
 
 ### `checkKeyCodeForSafari` (default: `true`)
 
@@ -215,7 +217,8 @@ input.addEventListener('keydown', (e) => {
 });
 ```
 
-> **Note:** `e.keyCode` is deprecated but remains the only reliable way to detect IME composition in Safari's event order. Set `checkKeyCodeForSafari: false` if Safari support is not a concern — `e.isComposing` alone will then be accepted.
+> [!NOTE]
+> `e.keyCode` is deprecated but remains the only reliable way to detect IME composition in Safari's event order. Set `checkKeyCodeForSafari: false` if Safari support is not a concern — `e.isComposing` alone will then be accepted.
 
 ## When Not to Use
 
