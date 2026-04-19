@@ -192,6 +192,47 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Escape') close(); });`,
     },
+    // ── guardFunctions option ──────────────────────────────────────────────────
+    // basic: named guard function exempts keydown Enter check
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+    },
+    // keyup
+    {
+      code: `input.addEventListener('keyup', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+    },
+    // onkeydown assignment
+    {
+      code: `input.onkeydown = (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); };`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+    },
+    // JSX onKeyDown
+    {
+      code: `<input onKeyDown={(e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+    },
+    // multiple guard function names — second name matches
+    {
+      code: `input.addEventListener('keydown', (e) => { if (isComposingGuard(e)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing", "isComposingGuard"] }],
+    },
+    // negated guard: if (!guardIsComposing(e)) — still recognised
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+    },
+    // combined with checkKeyCodeForSafari: false — no requireKeyCode229 report
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"], checkKeyCodeForSafari: false }],
+    },
+    // compound condition with guard function: if (guardIsComposing(e) && …)
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e) && !e.shiftKey) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+    },
   ],
 
   invalid: [
@@ -537,6 +578,23 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `<input onKeyPress={(e) => { switch(e.keyCode) { case 13: submit(); break; } }} />;`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
+    },
+    // ── guardFunctions — guard not in the list → still flagged ────────────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    // guardFunctions with keypress — keypress is deprecated regardless
+    {
+      code: `input.addEventListener('keypress', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+      errors: [{ messageId: "keypressProhibited", data: { eventName: "keypress" } }],
+    },
+    // guard function called outside an IfStatement test — not recognised as a guard
+    {
+      code: `input.addEventListener('keydown', (e) => { guardIsComposing(e); if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
     },
     // ── JSX FunctionExpression (function keyword, not arrow) ─────────────────
     {

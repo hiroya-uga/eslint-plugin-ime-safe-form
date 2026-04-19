@@ -4,6 +4,7 @@ import {
   containsEnterKeyCheck,
   DEPRECATED_JSX_KEY_EVENTS,
   DEPRECATED_KEY_EVENTS,
+  hasGuardFunctionCall,
   hasIsComposingCheck,
   hasKeyCode229Check,
   JSX_KEY_EVENTS,
@@ -13,13 +14,11 @@ import type { JSXAttribute } from './helpers';
 
 const messages = {
   requireImeSafeSubmit:
-    "Enter key detected in '{{eventName}}' without an IME composition guard. " +
-    "Add 'if (e.isComposing) return;' before the check, or handle submission via the form's 'submit' event.",
+    "Enter key detected in '{{eventName}}' without an IME composition guard. Add 'if (e.isComposing) return;' before the check, or handle submission via the form's 'submit' event.",
   keypressProhibited:
     "'keypress' is deprecated. Use 'keydown' with an e.isComposing guard instead, or handle submission via the form's 'submit' event.",
   requireKeyCode229:
-    'In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. ' +
-    "Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
+    "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
 
 const rule: Rule.RuleModule = {
@@ -37,6 +36,11 @@ const rule: Rule.RuleModule = {
         type: 'object',
         properties: {
           checkKeyCodeForSafari: { type: 'boolean' },
+          guardFunctions: {
+            type: 'array',
+            items: { type: 'string' },
+            uniqueItems: true,
+          },
         },
         additionalProperties: false,
       },
@@ -53,6 +57,16 @@ const rule: Rule.RuleModule = {
       'checkKeyCodeForSafari' in rawOption &&
       (rawOption as Record<string, unknown>)['checkKeyCodeForSafari'] === false
     );
+    const guardFunctions =
+      rawOption !== null &&
+      rawOption !== undefined &&
+      typeof rawOption === 'object' &&
+      'guardFunctions' in rawOption &&
+      Array.isArray((rawOption as Record<string, unknown>)['guardFunctions'])
+        ? ((rawOption as Record<string, unknown>)['guardFunctions'] as unknown[]).filter(
+            (item): item is string => typeof item === 'string',
+          )
+        : [];
 
     /**
      * @param allowIsComposingGuard
@@ -86,6 +100,14 @@ const rule: Rule.RuleModule = {
             messageId: 'requireKeyCode229',
           });
         }
+        return;
+      }
+
+      if (
+        allowIsComposingGuard &&
+        guardFunctions.length > 0 &&
+        hasGuardFunctionCall({ node: body, guardFunctions })
+      ) {
         return;
       }
 
