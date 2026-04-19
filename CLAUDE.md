@@ -97,6 +97,24 @@ npm run build     # emit to dist/ (required before publishing)
 
 No external test framework — uses Node.js built-in test runner with `tsx` for TypeScript support.
 
+## Release Process
+
+npm publish is handled automatically by GitHub Actions (`.github/workflows/publish.yml`).
+Publishing a GitHub Release triggers the workflow: typecheck → test → `npm publish --provenance`.
+
+Steps:
+
+1. Merge the release branch into `main`
+2. On `main`, bump the version in `package.json`
+3. Commit and push: `git commit -m "Release vX.Y.Z" && git push`
+4. Create and push a tag: `git tag vX.Y.Z && git push --tags`
+5. Create a GitHub Release from the tag — Actions publishes to npm automatically
+
+Version conventions:
+- **patch** (x.x.Z) — bug fixes, false positive corrections
+- **minor** (x.Y.0) — new features, new rule options
+- **major** (X.0.0) — breaking changes
+
 ## Key Design Decisions
 
 - **`keypress` is always banned** even with `isComposing` guard, because `keypress` is deprecated and there is no reason to use it for new code.
