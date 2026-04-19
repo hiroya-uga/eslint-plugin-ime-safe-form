@@ -58,18 +58,18 @@ const isEnterKeyBinaryExpression = (node: Node) => {
     return false;
   }
 
-  const isEnterString = ({ left, right }: { left: Node; right: Node }) =>
-    ENTER_STRING_PROPS.some((p) => isMemberWithProp({ node: left, propName: p })) &&
-    isLiteral({ node: right, value: 'Enter' });
-  const isEnterCode = ({ left, right }: { left: Node; right: Node }) =>
-    LEGACY_CODE_PROPS.some((p) => isMemberWithProp({ node: left, propName: p })) &&
-    isLiteral({ node: right, value: 13 });
+  const isEnterString = ({ leftOperand, rightOperand }: { leftOperand: Node; rightOperand: Node }) =>
+    ENTER_STRING_PROPS.some((prop) => isMemberWithProp({ node: leftOperand, propName: prop })) &&
+    isLiteral({ node: rightOperand, value: 'Enter' });
+  const isEnterCode = ({ leftOperand, rightOperand }: { leftOperand: Node; rightOperand: Node }) =>
+    LEGACY_CODE_PROPS.some((prop) => isMemberWithProp({ node: leftOperand, propName: prop })) &&
+    isLiteral({ node: rightOperand, value: 13 });
 
   return (
-    isEnterString({ left, right }) ||
-    isEnterString({ left: right, right: left }) ||
-    isEnterCode({ left, right }) ||
-    isEnterCode({ left: right, right: left })
+    isEnterString({ leftOperand: left, rightOperand: right }) ||
+    isEnterString({ leftOperand: right, rightOperand: left }) ||
+    isEnterCode({ leftOperand: left, rightOperand: right }) ||
+    isEnterCode({ leftOperand: right, rightOperand: left })
   );
 };
 
@@ -87,12 +87,15 @@ const isEnterKeySwitchStatement = (node: Node) => {
   const { discriminant, cases } = node;
 
   const hasCase = (value: string | number) =>
-    cases.some((c) => c.test !== null && c.test !== undefined && isLiteral({ node: c.test, value }));
+    cases.some(
+      (switchCase) =>
+        switchCase.test !== null && switchCase.test !== undefined && isLiteral({ node: switchCase.test, value }),
+    );
 
-  if (ENTER_STRING_PROPS.some((p) => isMemberWithProp({ node: discriminant, propName: p }))) {
+  if (ENTER_STRING_PROPS.some((prop) => isMemberWithProp({ node: discriminant, propName: prop }))) {
     return hasCase('Enter');
   }
-  if (LEGACY_CODE_PROPS.some((p) => isMemberWithProp({ node: discriminant, propName: p }))) {
+  if (LEGACY_CODE_PROPS.some((prop) => isMemberWithProp({ node: discriminant, propName: prop }))) {
     return hasCase(13);
   }
 
@@ -173,11 +176,11 @@ const isKeyCode229BinaryExpression = (node: Node) => {
  */
 export const hasKeyCode229Check = (node: Node | null | undefined) =>
   walkAst({
-    predicate: (n) =>
-      n.type === 'IfStatement' &&
+    predicate: (candidateNode) =>
+      candidateNode.type === 'IfStatement' &&
       walkAst({
         predicate: (child) => isKeyCode229BinaryExpression(child),
-        node: n.test,
+        node: candidateNode.test,
       }),
     node,
   });
@@ -190,11 +193,11 @@ export const hasKeyCode229Check = (node: Node | null | undefined) =>
  */
 export const hasIsComposingCheck = (node: Node | null | undefined) =>
   walkAst({
-    predicate: (n) =>
-      n.type === 'IfStatement' &&
+    predicate: (candidateNode) =>
+      candidateNode.type === 'IfStatement' &&
       walkAst({
         predicate: (child) => isMemberWithProp({ node: child, propName: 'isComposing' }),
-        node: n.test,
+        node: candidateNode.test,
       }),
     node,
   });

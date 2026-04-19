@@ -134,3 +134,5 @@ The following rules apply to all source code under `src/`:
   - OK: `({ a, b, c }) => {}`
 - **Braces required on `if` statements** — Never omit braces, even for single-line bodies. Arrow function expression bodies are exempt.
 - **Return type inference** — Omit explicit return type annotations where TypeScript can infer them. Exception: recursive functions must annotate their return type.
+- **`no-shadow`** — Avoid variable/parameter names that shadow an identifier from an outer scope. When destructuring inside a nested function, rename the bindings if they clash with outer names (e.g. `{ left: lhs, right: rhs }`).
+- **No single-character variable names** — Use descriptive names even for short-lived callback parameters. Prefer `prop` over `p`, `ifNode` over `n`, `switchCase` over `c`.
