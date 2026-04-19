@@ -7,6 +7,7 @@ import {
   hasGuardFunctionCall,
   hasIsComposingCheck,
   hasKeyCode229Check,
+  hasModifierKeyGuard,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
 } from './helpers';
@@ -108,6 +109,10 @@ const rule: Rule.RuleModule = {
         guardFunctions.length > 0 &&
         hasGuardFunctionCall({ node: body, guardFunctions })
       ) {
+        return;
+      }
+
+      if (allowIsComposingGuard && hasModifierKeyGuard(body)) {
         return;
       }
 

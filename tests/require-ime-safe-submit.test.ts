@@ -192,6 +192,59 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Escape') close(); });`,
     },
+    // ── modifier key guard — IME cannot compose while a modifier is held ────────
+    // Pattern A: Enter + modifier in same && condition
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.metaKey) submit(); });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.shiftKey) submit(); });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.altKey) submit(); });`,
+    },
+    // reversed operand order
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') submit(); });`,
+    },
+    // multiple modifiers with ||
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); });`,
+    },
+    // legacy keyCode
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.keyCode === 13 && e.ctrlKey) submit(); });`,
+    },
+    // keyup
+    {
+      code: `input.addEventListener('keyup', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
+    },
+    // onkeydown assignment
+    {
+      code: `input.onkeydown = (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); };`,
+    },
+    // JSX
+    {
+      code: `<input onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) submitForm(); }} />;`,
+    },
+    {
+      code: `<input onKeyUp={(e) => { if (e.key === 'Enter' && e.ctrlKey) submitForm(); }} />;`,
+    },
+    // Pattern B: outer if with modifier, Enter check inside
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey) { if (e.key === 'Enter') submit(); } });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey) { switch(e.key) { case 'Enter': submit(); break; } } });`,
+    },
+    // checkKeyCodeForSafari: false — modifier guard still exempts
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
     // ── guardFunctions option ──────────────────────────────────────────────────
     // basic: named guard function exempts keydown Enter check
     {
@@ -578,6 +631,22 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `<input onKeyPress={(e) => { switch(e.keyCode) { case 13: submit(); break; } }} />;`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
+    },
+    // ── modifier key — patterns that are NOT safe ────────────────────────────
+    // || instead of && — Enter without modifier still triggers
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.ctrlKey) submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // Enter check is the outer if, modifier check is inside — still unsafe
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { if (e.ctrlKey) submit(); } });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // keypress with modifier guard — keypress is always prohibited
+    {
+      code: `input.addEventListener('keypress', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'keypress' } }],
     },
     // ── guardFunctions — guard not in the list → still flagged ────────────────
     {

@@ -26,7 +26,7 @@ Try it in the [playground](https://github.com/hiroya-uga/eslint-plugin-ime-safe-
 
 When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, users typing with an IME experience broken input: pressing Enter to **confirm IME candidates** accidentally triggers form submission before the composition is complete.
 
-There are two correct approaches:
+There are three correct approaches:
 
 ```js
 // ✅ Option 1: guard with e.isComposing + e.keyCode === 229 (covers Safari)
@@ -39,6 +39,11 @@ input.addEventListener('keydown', (e) => {
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   submit();
+});
+
+// ✅ Option 3: require a modifier key — IME cannot be composing while Ctrl/Meta/Shift/Alt is held
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
 });
 
 // ❌ Bad — breaks IME input
@@ -154,7 +159,7 @@ module.exports = {
 
 ### Detected patterns
 
-- `element.addEventListener('keydown' \| 'keyup', handler)` where handler checks `e.key === 'Enter'`, `e.code === 'Enter'`, `e.keyCode === 13`, or `e.which === 13` **without** an `e.isComposing` guard
+- `element.addEventListener('keydown' \| 'keyup', handler)` where handler checks `e.key === 'Enter'`, `e.code === 'Enter'`, `e.keyCode === 13`, or `e.which === 13` **without** an `e.isComposing` guard or a modifier key condition (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`)
 - `element.addEventListener('keypress', handler)` where handler checks for Enter — always flagged (`keypress` is deprecated)
 - `element.onkeydown` / `element.onkeyup` / `element.onkeypress` assignments
 - JSX `onKeyDown` / `onKeyUp` / `onKeyPress` props
