@@ -129,6 +129,7 @@ input.addEventListener('keydown', (e) => {
 |---|---|
 | `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
 | `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
+| Guard function call in `IfStatement` (with `guardFunctions` option) | Function is declared as an equivalent IME guard |
 | Enter check inside a nested function | Out of scope for the keydown handler |
 | Named function reference (`addEventListener('keydown', fn)`) | Cannot statically analyze external function bodies |
 
@@ -147,6 +148,40 @@ input.addEventListener('keydown', (e) => {
   ```
 
 ## Options
+
+### `guardFunctions` (default: `[]`)
+
+If your codebase extracts the `isComposing` check into a shared helper, list those function names here. The rule will treat a call to any of these functions inside an `if` statement as an equivalent IME guard, and will not flag the handler.
+
+```js
+// eslint.config.js
+export default [
+  {
+    ...imeSafeForm.configs.recommended,
+    rules: {
+      'ime-safe-form/require-ime-safe-submit': ['warn', {
+        guardFunctions: ['guardIsComposing'],
+      }],
+    },
+  },
+];
+```
+
+```js
+// ✅ Recognised as an IME guard — no error
+const guardIsComposing = (e) => e.isComposing || e.keyCode === 229;
+
+input.addEventListener('keydown', (e) => {
+  if (guardIsComposing(e)) return;
+  if (e.key === 'Enter') submit();
+});
+```
+
+Negated calls (`if (!guardIsComposing(e))`) and calls inside compound conditions (`&&`, `||`) are also recognised.
+
+> **Note:** The rule cannot inspect the body of the guard function. It trusts that any function listed in `guardFunctions` correctly handles IME state, including the Safari `keyCode === 229` case. The `requireKeyCode229` check is skipped for these handlers.
+
+> **Note:** `guardFunctions` has no effect on `keypress` handlers — `keypress` is prohibited regardless of any guard.
 
 ### `checkKeyCodeForSafari` (default: `true`)
 

@@ -201,3 +201,35 @@ export const hasIsComposingCheck = (node: Node | null | undefined) =>
       }),
     node,
   });
+
+/**
+ * Returns true if the handler body contains an IfStatement whose condition
+ * calls one of the specified guard function names. This allows users to
+ * extract the isComposing guard into a helper and declare it via the
+ * `guardFunctions` option.
+ *
+ *   const guardIsComposing = (e) => e.isComposing || e.keyCode === 229;
+ *   input.addEventListener('keydown', (e) => {
+ *     if (guardIsComposing(e)) return;  ← recognised as a guard
+ *     if (e.key === 'Enter') submit();
+ *   });
+ */
+export const hasGuardFunctionCall = ({
+  node,
+  guardFunctions,
+}: {
+  node: Node | null | undefined;
+  guardFunctions: string[];
+}) =>
+  walkAst({
+    predicate: (candidateNode) =>
+      candidateNode.type === 'IfStatement' &&
+      walkAst({
+        predicate: (child) =>
+          child.type === 'CallExpression' &&
+          child.callee.type === 'Identifier' &&
+          guardFunctions.includes(child.callee.name),
+        node: candidateNode.test,
+      }),
+    node,
+  });

@@ -51,6 +51,15 @@ input.addEventListener('keydown', (e) => {
 
 > **Safari note:** In Safari, `compositionend` fires before `keydown`, so `e.isComposing` is `false` when Enter confirms IME. The `e.keyCode === 229` check covers this gap. To require only `e.isComposing` (if Safari support is not needed), set `{ checkKeyCodeForSafari: false }` in the rule options.
 
+> **Custom guard functions:** If you extract the `isComposing` check into a shared helper, use the `guardFunctions` option to register the function name so the rule recognises it as an IME guard:
+>
+> ```js
+> const guardIsComposing = (e) => e.isComposing || e.keyCode === 229;
+>
+> // eslint.config.js
+> rules: { 'ime-safe-form/require-ime-safe-submit': ['warn', { guardFunctions: ['guardIsComposing'] }] }
+> ```
+
 ## Installation
 
 ```sh
