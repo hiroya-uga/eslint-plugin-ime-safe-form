@@ -29,21 +29,21 @@ When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, 
 There are three correct approaches:
 
 ```js
-// ✅ Option 1: guard with e.isComposing + e.keyCode === 229 (covers Safari)
-input.addEventListener('keydown', (e) => {
-  if (e.isComposing || e.keyCode === 229) return;
-  if (e.key === 'Enter') submit();
-});
-
-// ✅ Option 2: use the form's submit event (fires after composition ends)
+// ✅ Option 1: use the form's submit event (fires after composition ends — no guard needed)
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   submit();
 });
 
-// ✅ Option 3: require a modifier key — IME cannot be composing while Ctrl/Meta/Shift/Alt is held
+// ✅ Option 2: require a modifier key — IME cannot be composing while Ctrl/Meta/Shift/Alt is held
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
+});
+
+// ✅ Option 3: guard with e.isComposing + e.keyCode === 229 (covers Safari)
+input.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Enter') submit();
 });
 
 // ❌ Bad — breaks IME input
