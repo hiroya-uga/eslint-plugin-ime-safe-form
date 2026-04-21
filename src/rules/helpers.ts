@@ -32,9 +32,12 @@ export interface JSXAttribute extends BaseNode {
   parent: JSXOpeningElement;
 }
 
+export const isString = (item: unknown): item is string => typeof item === 'string';
+
 export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea', 'select']);
 
 const CONTENTEDITABLE_PROPS = new Set(['contenteditable', 'contentEditable']);
+const PASCAL_CASE_PATTERN = /^[A-Z]/;
 
 export const isImeCapableJsxElement = ({
   openingElement,
@@ -51,7 +54,7 @@ export const isImeCapableJsxElement = ({
 
   const elementName = nameNode.name;
 
-  if (/^[A-Z]/.test(elementName)) {
+  if (PASCAL_CASE_PATTERN.test(elementName)) {
     return !allowComponents.includes(elementName);
   }
 

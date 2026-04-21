@@ -9,6 +9,7 @@ import {
   hasKeyCode229Check,
   hasModifierKeyGuard,
   isImeCapableJsxElement,
+  isString,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
 } from './helpers';
@@ -22,6 +23,19 @@ const messages = {
   requireKeyCode229:
     "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
+
+const resolveStringArrayOption = ({ rawOption, key }: { rawOption: unknown; key: string }): string[] => {
+  if (
+    rawOption !== null &&
+    rawOption !== undefined &&
+    typeof rawOption === 'object' &&
+    key in rawOption &&
+    Array.isArray((rawOption as Record<string, unknown>)[key])
+  ) {
+    return ((rawOption as Record<string, unknown>)[key] as unknown[]).filter(isString);
+  }
+  return [];
+};
 
 const rule: Rule.RuleModule = {
   meta: {
@@ -64,26 +78,8 @@ const rule: Rule.RuleModule = {
       'checkKeyCodeForSafari' in rawOption &&
       (rawOption as Record<string, unknown>)['checkKeyCodeForSafari'] === false
     );
-    const guardFunctions =
-      rawOption !== null &&
-      rawOption !== undefined &&
-      typeof rawOption === 'object' &&
-      'guardFunctions' in rawOption &&
-      Array.isArray((rawOption as Record<string, unknown>)['guardFunctions'])
-        ? ((rawOption as Record<string, unknown>)['guardFunctions'] as unknown[]).filter(
-            (item): item is string => typeof item === 'string',
-          )
-        : [];
-    const allowComponents =
-      rawOption !== null &&
-      rawOption !== undefined &&
-      typeof rawOption === 'object' &&
-      'allowComponents' in rawOption &&
-      Array.isArray((rawOption as Record<string, unknown>)['allowComponents'])
-        ? ((rawOption as Record<string, unknown>)['allowComponents'] as unknown[]).filter(
-            (item): item is string => typeof item === 'string',
-          )
-        : [];
+    const guardFunctions = resolveStringArrayOption({ rawOption, key: 'guardFunctions' });
+    const allowComponents = resolveStringArrayOption({ rawOption, key: 'allowComponents' });
 
     /**
      * @param allowIsComposingGuard
@@ -120,11 +116,7 @@ const rule: Rule.RuleModule = {
         return;
       }
 
-      if (
-        allowIsComposingGuard &&
-        guardFunctions.length > 0 &&
-        hasGuardFunctionCall({ node: body, guardFunctions })
-      ) {
+      if (allowIsComposingGuard && guardFunctions.length > 0 && hasGuardFunctionCall({ node: body, guardFunctions })) {
         return;
       }
 
