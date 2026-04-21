@@ -8,9 +8,9 @@ When a `keydown` or `keyup` handler checks for the Enter key without guarding ag
 
 This rule requires one of three correct approaches:
 
-1. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
-2. **Form `submit` event** — fires only after composition completes; no guard needed
-3. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside Enter, IME composition cannot be active; no guard is needed
+1. **Form `submit` event** — fires only after composition completes; no guard needed
+2. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside Enter, IME composition cannot be active; no guard is needed
+3. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
 
 `keypress` is prohibited entirely because it is deprecated. Use `keydown` with an `e.isComposing` guard instead.
 
@@ -87,19 +87,13 @@ input.addEventListener('keydown', (e) => {
 ```js
 /* eslint ime-safe-form/require-ime-safe-submit: "warn" */
 
-// ✅ Option 1: e.isComposing + e.keyCode === 229 guard (covers Safari)
-input.addEventListener('keydown', (e) => {
-  if (e.isComposing || e.keyCode === 229) return;
-  if (e.key === 'Enter') submit();
-});
-
-// ✅ Option 2: use the form's submit event
+// ✅ Option 1: use the form's submit event (fires after composition ends — no guard needed)
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   submit();
 });
 
-// ✅ Option 3: modifier key — IME cannot be composing when Ctrl/Meta/Shift/Alt is held
+// ✅ Option 2: modifier key — IME cannot be composing when Ctrl/Meta/Shift/Alt is held
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.ctrlKey) submit();
 });
@@ -114,6 +108,12 @@ input.addEventListener('keydown', (e) => {
   if (e.ctrlKey) {
     if (e.key === 'Enter') submit();
   }
+});
+
+// ✅ Option 3: e.isComposing + e.keyCode === 229 guard (covers Safari)
+input.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Enter') submit();
 });
 
 // ✅ keydown for non-submission purposes is fine

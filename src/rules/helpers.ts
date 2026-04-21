@@ -11,11 +11,73 @@ export interface JSXExpressionContainer extends BaseNode {
   expression: Node | null;
 }
 
+export interface JSXSpreadAttribute extends BaseNode {
+  type: 'JSXSpreadAttribute';
+}
+
+export interface JSXMemberExpression extends BaseNode {
+  type: 'JSXMemberExpression';
+}
+
+export interface JSXOpeningElement extends BaseNode {
+  type: 'JSXOpeningElement';
+  name: JSXIdentifier | JSXMemberExpression;
+  attributes: Array<JSXAttribute | JSXSpreadAttribute>;
+}
+
 export interface JSXAttribute extends BaseNode {
   type: 'JSXAttribute';
   name: JSXIdentifier;
-  value: JSXExpressionContainer | null;
+  value: JSXExpressionContainer | { type: 'Literal'; value: unknown } | null;
+  parent: JSXOpeningElement;
 }
+
+export const isString = (item: unknown): item is string => typeof item === 'string';
+
+export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea', 'select']);
+
+const CONTENTEDITABLE_PROPS = new Set(['contenteditable', 'contentEditable']);
+const PASCAL_CASE_PATTERN = /^[A-Z]/;
+
+export const isImeCapableJsxElement = ({
+  openingElement,
+  allowComponents,
+}: {
+  openingElement: JSXOpeningElement;
+  allowComponents: string[];
+}) => {
+  const { name: nameNode, attributes } = openingElement;
+
+  if (nameNode.type !== 'JSXIdentifier') {
+    return true;
+  }
+
+  const elementName = nameNode.name;
+
+  if (PASCAL_CASE_PATTERN.test(elementName)) {
+    return !allowComponents.includes(elementName);
+  }
+
+  if (IME_CAPABLE_ELEMENTS.has(elementName)) {
+    return true;
+  }
+
+  return attributes.some((attr) => {
+    if (attr.type !== 'JSXAttribute') {
+      return false;
+    }
+
+    if (attr.name.type !== 'JSXIdentifier' || !CONTENTEDITABLE_PROPS.has(attr.name.name)) {
+      return false;
+    }
+
+    if (attr.value !== null && attr.value.type === 'Literal' && attr.value.value === 'false') {
+      return false;
+    }
+
+    return true;
+  });
+};
 
 export const FUNCTION_TYPES = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'FunctionDeclaration']);
 
