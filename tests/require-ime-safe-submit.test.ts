@@ -245,6 +245,44 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
       options: [{ checkKeyCodeForSafari: false }],
     },
+    // ── allowComponents option — named components are not flagged ─────────────
+    {
+      code: `<MyInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['MyInput'] }],
+    },
+    {
+      code: `<MyInput onKeyUp={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['MyInput'] }],
+    },
+    {
+      code: `<MyInput onKeyPress={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['MyInput'] }],
+    },
+    // multiple names — second matches
+    {
+      code: `<SearchField onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['MyInput', 'SearchField'] }],
+    },
+    // ── JSX non-input HTML elements — not IME-capable, not flagged ────────────
+    {
+      code: `<div onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<button onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<span onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    // contentEditable="false" — explicitly not editable
+    {
+      code: `<div contentEditable="false" onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<div contenteditable="false" onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
     // ── guardFunctions option ──────────────────────────────────────────────────
     // basic: named guard function exempts keydown Enter check
     {
@@ -664,6 +702,39 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keydown', (e) => { guardIsComposing(e); if (e.key === 'Enter') submit(); });`,
       options: [{ guardFunctions: ["guardIsComposing"] }],
       errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    // ── JSX IME-capable elements beyond <input> ───────────────────────────────
+    {
+      code: `<textarea onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `<select onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // contentEditable — makes non-input elements IME-capable
+    {
+      code: `<div contentEditable onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `<div contentEditable="true" onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `<div contenteditable onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // PascalCase component — warned by default (cannot inspect rendered output)
+    {
+      code: `<MyInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // allowComponents — unlisted component is still flagged
+    {
+      code: `<OtherInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['MyInput'] }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
     // ── JSX FunctionExpression (function keyword, not arrow) ─────────────────
     {

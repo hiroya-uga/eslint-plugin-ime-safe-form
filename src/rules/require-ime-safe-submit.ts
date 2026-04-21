@@ -8,6 +8,7 @@ import {
   hasIsComposingCheck,
   hasKeyCode229Check,
   hasModifierKeyGuard,
+  isImeCapableJsxElement,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
 } from './helpers';
@@ -42,6 +43,11 @@ const rule: Rule.RuleModule = {
             items: { type: 'string' },
             uniqueItems: true,
           },
+          allowComponents: {
+            type: 'array',
+            items: { type: 'string' },
+            uniqueItems: true,
+          },
         },
         additionalProperties: false,
       },
@@ -65,6 +71,16 @@ const rule: Rule.RuleModule = {
       'guardFunctions' in rawOption &&
       Array.isArray((rawOption as Record<string, unknown>)['guardFunctions'])
         ? ((rawOption as Record<string, unknown>)['guardFunctions'] as unknown[]).filter(
+            (item): item is string => typeof item === 'string',
+          )
+        : [];
+    const allowComponents =
+      rawOption !== null &&
+      rawOption !== undefined &&
+      typeof rawOption === 'object' &&
+      'allowComponents' in rawOption &&
+      Array.isArray((rawOption as Record<string, unknown>)['allowComponents'])
+        ? ((rawOption as Record<string, unknown>)['allowComponents'] as unknown[]).filter(
             (item): item is string => typeof item === 'string',
           )
         : [];
@@ -178,6 +194,10 @@ const rule: Rule.RuleModule = {
       JSXAttribute(rawNode: unknown) {
         const node = rawNode as JSXAttribute;
         if (node.name.type !== 'JSXIdentifier' || !JSX_KEY_EVENTS.has(node.name.name)) {
+          return;
+        }
+
+        if (!isImeCapableJsxElement({ openingElement: node.parent, allowComponents })) {
           return;
         }
 
