@@ -2,6 +2,7 @@ import type { Rule } from 'eslint';
 import type { BaseNode, Node } from 'estree';
 import {
   containsEnterKeyCheck,
+  containsKeyCheck,
   DEPRECATED_JSX_KEY_EVENTS,
   DEPRECATED_KEY_EVENTS,
   hasGuardFunctionCall,
@@ -17,7 +18,7 @@ import type { JSXAttribute } from './helpers';
 
 const messages = {
   requireImeSafeSubmit:
-    "Enter key detected in '{{eventName}}' without an IME composition guard. Add 'if (e.isComposing) return;' before the check, or handle submission via the form's 'submit' event.",
+    "Key check detected in '{{eventName}}' without an IME composition guard. Add 'if (e.isComposing) return;' before the check, or handle submission via the form's 'submit' event.",
   keypressProhibited:
     "'keypress' is deprecated. Use 'keydown' with an e.isComposing guard instead, or handle submission via the form's 'submit' event.",
   requireKeyCode229:
@@ -124,7 +125,7 @@ const rule: Rule.RuleModule = {
         return;
       }
 
-      if (containsEnterKeyCheck(body)) {
+      if (containsKeyCheck(body)) {
         context.report({
           node: reportNode,
           messageId: allowIsComposingGuard ? 'requireImeSafeSubmit' : 'keypressProhibited',

@@ -212,6 +212,43 @@ const isEnterKeyNode = (node: Node) => isEnterKeyBinaryExpression(node) || isEnt
 export const containsEnterKeyCheck = (node: Node | null | undefined) => walkAst({ predicate: isEnterKeyNode, node });
 
 /**
+ * Check if a BinaryExpression compares any key-related property:
+ *   e.key, e.code, e.keyCode, e.which (any operator, any value)
+ */
+const isKeyCheckBinaryExpression = (node: Node) => {
+  if (node.type !== 'BinaryExpression') {
+    return false;
+  }
+  const { operator, left, right } = node;
+  if (operator !== '===' && operator !== '==' && operator !== '!==' && operator !== '!=') {
+    return false;
+  }
+  const isKeyMember = (candidate: Node) =>
+    ENTER_STRING_PROPS.some((prop) => isMemberWithProp({ node: candidate, propName: prop })) ||
+    LEGACY_CODE_PROPS.some((prop) => isMemberWithProp({ node: candidate, propName: prop }));
+  return isKeyMember(left) || isKeyMember(right);
+};
+
+/**
+ * Check if a SwitchStatement discriminant is a key-related property:
+ *   switch(e.key), switch(e.code), switch(e.keyCode), switch(e.which)
+ */
+const isKeyCheckSwitchStatement = (node: Node) => {
+  if (node.type !== 'SwitchStatement') {
+    return false;
+  }
+  const { discriminant } = node;
+  return (
+    ENTER_STRING_PROPS.some((prop) => isMemberWithProp({ node: discriminant, propName: prop })) ||
+    LEGACY_CODE_PROPS.some((prop) => isMemberWithProp({ node: discriminant, propName: prop }))
+  );
+};
+
+const isKeyCheckNode = (node: Node) => isKeyCheckBinaryExpression(node) || isKeyCheckSwitchStatement(node);
+
+export const containsKeyCheck = (node: Node | null | undefined) => walkAst({ predicate: isKeyCheckNode, node });
+
+/**
  * Check if a BinaryExpression is a keyCode === 229 check (Safari IME guard):
  *   e.keyCode === 229  /  e.keyCode == 229  (and reversed operand order)
  */
@@ -291,30 +328,30 @@ const isPositiveModifierExpression = (node: Node): boolean => {
 
 /**
  * Returns true if the LogicalExpression subtree (connected by &&) has one side
- * containing an Enter key check and the other side being a positive modifier
+ * containing any key check and the other side being a positive modifier
  * expression. Recursively handles chained &&.
  *
  *   e.key === 'Enter' && e.ctrlKey               → true
- *   e.ctrlKey && e.key === 'Enter'               → true
+ *   e.ctrlKey && e.key === 'Tab'                 → true
  *   e.key === 'Enter' && (e.ctrlKey || e.metaKey) → true
  *   e.key === 'Enter' && !e.shiftKey              → false (!modifier ≠ IME guard)
  */
-const andChainHasEnterWithModifier = (node: Node): boolean => {
+const andChainHasKeyWithModifier = (node: Node): boolean => {
   if (node.type !== 'LogicalExpression' || node.operator !== '&&') {
     return false;
   }
   const { left, right } = node;
-  const leftHasEnter = walkAst({ predicate: isEnterKeyNode, node: left });
-  const rightHasEnter = walkAst({ predicate: isEnterKeyNode, node: right });
+  const leftHasKey = containsKeyCheck(left);
+  const rightHasKey = containsKeyCheck(right);
 
-  if (leftHasEnter && isPositiveModifierExpression(right)) {
+  if (leftHasKey && isPositiveModifierExpression(right)) {
     return true;
   }
-  if (rightHasEnter && isPositiveModifierExpression(left)) {
+  if (rightHasKey && isPositiveModifierExpression(left)) {
     return true;
   }
 
-  return andChainHasEnterWithModifier(left) || andChainHasEnterWithModifier(right);
+  return andChainHasKeyWithModifier(left) || andChainHasKeyWithModifier(right);
 };
 
 /**
@@ -340,11 +377,11 @@ export const hasModifierKeyGuard = (node: Node | null | undefined) =>
 
       const { test, consequent } = candidateNode;
 
-      if (andChainHasEnterWithModifier(test)) {
+      if (andChainHasKeyWithModifier(test)) {
         return true;
       }
 
-      return isPositiveModifierExpression(test) && containsEnterKeyCheck(consequent);
+      return isPositiveModifierExpression(test) && containsKeyCheck(consequent);
     },
     node,
   });

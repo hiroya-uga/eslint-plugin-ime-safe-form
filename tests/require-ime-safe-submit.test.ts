@@ -11,16 +11,16 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `form.addEventListener('submit', (e) => { e.preventDefault(); send(); });`,
     },
-    // ── keydown / keyup without Enter check — not a submit pattern ───────────
+    // ── keydown / keyup with isComposing guard — non-Enter key ───────────────
     {
-      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });`,
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Escape') close(); });`,
     },
     {
-      code: `input.addEventListener('keyup', (e) => { if (e.key === 'Escape') close(); });`,
+      code: `input.addEventListener('keyup', (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Tab') focusNext(); });`,
     },
-    // switch on key without Enter case
+    // switch on non-Enter key with isComposing guard
     {
-      code: `input.addEventListener('keydown', (e) => { switch(e.key) { case 'Escape': close(); break; } });`,
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing || e.keyCode === 229) return; switch(e.key) { case 'Escape': close(); break; } });`,
     },
     // click event — unrelated
     {
@@ -100,13 +100,9 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', ({ key }) => { if (key === 'Enter') submit(); });`,
     },
-    // ── window.onkeydown — no Enter check ────────────────────────────────────
+    // ── window.onkeydown — with isComposing guard ─────────────────────────────
     {
-      code: `window.onkeydown = (e) => { if (e.key === 'Escape') close(); };`,
-    },
-    // ── keypress without Enter check ─────────────────────────────────────────
-    {
-      code: `input.addEventListener('keypress', (e) => { if (e.key === 'Escape') close(); });`,
+      code: `window.onkeydown = (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Escape') close(); };`,
     },
     // ── isComposing guard with switch statement ───────────────────────────────
     {
@@ -132,18 +128,10 @@ tester.run('require-ime-safe-submit', rule, {
       code: `<input onKeyUp={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submitForm(); }} />;`,
       options: [{ checkKeyCodeForSafari: false }],
     },
-    // ── onkeypress assignment without Enter check ────────────────────────────
-    {
-      code: `input.onkeypress = (e) => { if (e.key === 'Escape') close(); };`,
-    },
     // ── isComposing guard with switch statement (keyup) ───────────────────────
     {
       code: `input.addEventListener('keyup', (e) => { if (e.isComposing) return; switch(e.key) { case 'Enter': submit(); break; } });`,
       options: [{ checkKeyCodeForSafari: false }],
-    },
-    // ── JSX onKeyPress without Enter check ───────────────────────────────────
-    {
-      code: `<input onKeyPress={(e) => { if (e.key === 'Escape') close(); }} />;`,
     },
     // ── !== / != early-return pattern with isComposing guard ─────────────────
     {
@@ -327,6 +315,35 @@ tester.run('require-ime-safe-submit', rule, {
   ],
 
   invalid: [
+    // ── non-Enter key checks — same IME race condition ────────────────────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keyup', (e) => { if (e.key === 'Tab') focusNext(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keyup' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { switch(e.key) { case 'Escape': close(); break; } });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `window.onkeydown = (e) => { if (e.key === 'Escape') close(); };`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
+    },
+    {
+      code: `input.addEventListener('keypress', (e) => { if (e.key === 'Escape') close(); });`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'keypress' } }],
+    },
+    {
+      code: `input.onkeypress = (e) => { if (e.key === 'Escape') close(); };`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
+    },
+    {
+      code: `<input onKeyPress={(e) => { if (e.key === 'Escape') close(); }} />;`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
+    },
     // ── addEventListener keydown ──────────────────────────────────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });`,
