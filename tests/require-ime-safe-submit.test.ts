@@ -784,6 +784,10 @@ tester.run('require-ime-safe-submit', rule, {
       code: `<input onKeyDown={(e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submitForm(); }} />;`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
+    {
+      code: `input.onkeydown = (e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); };`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
+    },
     // isComposing guard + non-Enter modifier shortcut + bare Enter → requireKeyCode229 must fire
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); });`,
