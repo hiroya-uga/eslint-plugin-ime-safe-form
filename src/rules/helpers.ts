@@ -232,6 +232,10 @@ const isKeyCheckBinaryExpression = (node: Node) => {
 /**
  * Check if a SwitchStatement discriminant is a key-related property:
  *   switch(e.key), switch(e.code), switch(e.keyCode), switch(e.which)
+ *
+ * Unlike isEnterKeySwitchStatement, this intentionally does NOT inspect case
+ * values — any switch on a key property is a key check regardless of which
+ * keys are handled.
  */
 const isKeyCheckSwitchStatement = (node: Node) => {
   if (node.type !== 'SwitchStatement') {

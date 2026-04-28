@@ -68,6 +68,13 @@ Three handler patterns are detected:
 
 Named function references (e.g. `addEventListener('keydown', handleFn)`) are intentionally not flagged — the handler body cannot be statically analyzed.
 
+### Switch statement detection asymmetry
+
+Two helpers detect `switch` statements, and they differ intentionally:
+
+- **`isEnterKeySwitchStatement`** — checks both the discriminant (`e.key`, `e.keyCode`, etc.) **and** the case values (must be `'Enter'` or `13`). Used by `containsEnterKeyCheck` for the Safari `keyCode === 229` check, which is only relevant when an Enter key is actually handled.
+- **`isKeyCheckSwitchStatement`** — checks the discriminant **only**. Any `switch(e.key)` triggers it regardless of which keys are cased. Used by `containsKeyCheck` because the rule flags *all* key checks in keydown/keyup without an isComposing guard, not just Enter.
+
 ### AST walking
 
 `walkAst()` traverses handler bodies but stops at nested function boundaries (`FUNCTION_TYPES`). This prevents false positives from Enter checks inside `setTimeout` callbacks or similar.
