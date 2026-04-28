@@ -40,6 +40,16 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.onkeydown = (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); };`,
     },
+    // ── e.nativeEvent.isComposing (React synthetic event workaround) ─────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submit(); }} />;`,
+    },
+    {
+      code: `input.onkeydown = (e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submit(); };`,
+    },
     // ── isComposing guard only (checkKeyCodeForSafari: false) ────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
@@ -51,6 +61,15 @@ tester.run('require-ime-safe-submit', rule, {
     },
     {
       code: `input.onkeydown = (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); };`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    // e.nativeEvent.isComposing with checkKeyCodeForSafari: false
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); }} />;`,
       options: [{ checkKeyCodeForSafari: false }],
     },
     // isComposing guard nested inside the Enter check
@@ -777,6 +796,19 @@ tester.run('require-ime-safe-submit', rule, {
     },
     {
       code: `<input onKeyDown={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    // ── e.nativeEvent.isComposing without keyCode 229 ─────────────────────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    {
+      code: `input.onkeydown = (e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); };`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); }} />;`,
       errors: [{ messageId: 'requireKeyCode229' }],
     },
     // isComposing with switch
