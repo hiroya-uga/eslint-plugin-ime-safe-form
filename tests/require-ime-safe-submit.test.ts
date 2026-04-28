@@ -352,6 +352,16 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e) && !e.shiftKey) return; if (e.key === 'Enter') submit(); });`,
       options: [{ guardFunctions: ["guardIsComposing"] }],
     },
+    // ── camelCase DOM assignment (onKeyDown, onKeyUp) — not a valid DOM API ─────
+    // DOM properties are case-sensitive: the valid form is onkeydown (lowercase).
+    // onKeyDown is a React JSX prop, not a DOM property, so assignment via = is
+    // not a recognized pattern and is intentionally not flagged.
+    {
+      code: `input.onKeyDown = (e) => { if (e.key === 'Enter') submit(); };`,
+    },
+    {
+      code: `input.onKeyUp = (e) => { if (e.key === 'Enter') submit(); };`,
+    },
   ],
 
   invalid: [
