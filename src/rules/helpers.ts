@@ -85,7 +85,7 @@ const ENTER_STRING_PROPS = ['key', 'code'] as const;
 const LEGACY_CODE_PROPS = ['keyCode', 'which'] as const;
 
 export const KEY_EVENTS = new Set(['keydown', 'keyup', 'keypress']);
-// keypress is deprecated: e.isComposing does not exempt it from the rule.
+/** keypress is deprecated: e.isComposing does not exempt it from the rule. */
 export const DEPRECATED_KEY_EVENTS = new Set(['keypress']);
 export const JSX_KEY_EVENTS = new Set(['onKeyDown', 'onKeyUp', 'onKeyPress']);
 export const DEPRECATED_JSX_KEY_EVENTS = new Set(['onKeyPress']);
@@ -164,13 +164,13 @@ const isEnterKeySwitchStatement = (node: Node) => {
   return false;
 };
 
+const isNonFunctionNode = (value: unknown): value is Node =>
+  value !== null && typeof value === 'object' && 'type' in value && !FUNCTION_TYPES.has((value as Node).type);
+
 /**
  * Returns direct child AST nodes, skipping function boundaries and the
  * `parent` back-reference added by ESLint.
  */
-const isNonFunctionNode = (value: unknown): value is Node =>
-  value !== null && typeof value === 'object' && 'type' in value && !FUNCTION_TYPES.has((value as Node).type);
-
 const getChildNodes = (node: Node) => {
   const result: Node[] = [];
   for (const [key, value] of Object.entries(node)) {
