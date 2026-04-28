@@ -32,7 +32,6 @@ export interface JSXAttribute extends BaseNode {
   parent: JSXOpeningElement;
 }
 
-
 export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea']);
 
 const CONTENTEDITABLE_PROPS = new Set(['contenteditable', 'contentEditable']);
