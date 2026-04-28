@@ -1,6 +1,9 @@
 # eslint-plugin-ime-safe-form
 
 [![npm version](https://img.shields.io/npm/v/eslint-plugin-ime-safe-form)](https://www.npmjs.com/package/eslint-plugin-ime-safe-form)
+[![npm downloads](https://img.shields.io/npm/dw/eslint-plugin-ime-safe-form)](https://www.npmjs.com/package/eslint-plugin-ime-safe-form)
+[![CI](https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/actions/workflows/ci.yml/badge.svg)](https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/actions/workflows/ci.yml)
+[![Socket Badge](https://badge.socket.dev/npm/package/eslint-plugin-ime-safe-form)](https://socket.dev/npm/package/eslint-plugin-ime-safe-form)
 [![license](https://img.shields.io/npm/l/eslint-plugin-ime-safe-form)](./LICENSE)
 
 ESLint plugin to enforce IME-safe form submission for users who type with an IME (Input Method Editor).
