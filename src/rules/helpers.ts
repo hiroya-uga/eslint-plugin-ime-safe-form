@@ -340,11 +340,11 @@ const isPositiveModifierExpression = (node: Node): boolean => {
 
 /**
  * Returns true if the LogicalExpression subtree (connected by &&) has one side
- * containing any key check and the other side being a positive modifier
+ * containing an Enter key check and the other side being a positive modifier
  * expression. Recursively handles chained &&.
  *
  *   e.key === 'Enter' && e.ctrlKey               → true
- *   e.ctrlKey && e.key === 'Tab'                 → true
+ *   e.ctrlKey && e.key === 'Tab'                 → false (not Enter)
  *   e.key === 'Enter' && (e.ctrlKey || e.metaKey) → true
  *   e.key === 'Enter' && !e.shiftKey              → false (!modifier ≠ IME guard)
  */
@@ -353,13 +353,13 @@ const andChainHasKeyWithModifier = (node: Node): boolean => {
     return false;
   }
   const { left, right } = node;
-  const leftHasKey = containsKeyCheck(left);
-  const rightHasKey = containsKeyCheck(right);
+  const leftHasEnterKey = containsEnterKeyCheck(left);
+  const rightHasEnterKey = containsEnterKeyCheck(right);
 
-  if (leftHasKey && isPositiveModifierExpression(right)) {
+  if (leftHasEnterKey && isPositiveModifierExpression(right)) {
     return true;
   }
-  if (rightHasKey && isPositiveModifierExpression(left)) {
+  if (rightHasEnterKey && isPositiveModifierExpression(left)) {
     return true;
   }
 
@@ -393,7 +393,7 @@ export const hasModifierKeyGuard = (node: Node | null | undefined) =>
         return true;
       }
 
-      return isPositiveModifierExpression(test) && containsKeyCheck(consequent);
+      return isPositiveModifierExpression(test) && containsEnterKeyCheck(consequent);
     },
     node,
   });

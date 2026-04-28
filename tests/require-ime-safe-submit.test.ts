@@ -765,6 +765,30 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keypress', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'keypress' } }],
     },
+    // ── modifier on a non-Enter shortcut must not exempt a bare Enter check ────
+    // A non-Enter modifier shortcut co-exists with an unguarded Enter check
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'k' && e.ctrlKey) openPalette(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // Pattern B variant: modifier outer-if guards only a non-Enter key, Enter is outside
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey) { if (e.key === 'k') openPalette(); } if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submitForm(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // isComposing guard + non-Enter modifier shortcut + bare Enter → requireKeyCode229 must fire
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
     // ── guardFunctions — guard not in the list → still flagged ────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
