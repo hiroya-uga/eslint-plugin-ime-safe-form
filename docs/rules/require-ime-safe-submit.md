@@ -181,7 +181,7 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`) are only checked on elem
 | Element | Flagged |
 |---|---|
 | `<input>`, `<textarea>` | Yes |
-| Any element with `contentEditable` / `contenteditable` (not `"false"` or `{false}`) | Yes |
+| Any element with `contentEditable` / `contenteditable` (not `"false"`, `{false}`, or `{'false'}`) | Yes |
 | PascalCase components (e.g. `<MyInput>`) | Yes (rendered output unknown) |
 | `<select>` | No (uses a dropdown picker; IME text input does not apply) |
 | Other elements (`<div>`, `<button>`, `<span>`, …) | No |

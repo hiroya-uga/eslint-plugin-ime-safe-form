@@ -217,6 +217,10 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') submit(); });`,
     },
+    // non-Enter shortcut with modifier is also safe
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'k') openPalette(); });`,
+    },
     // multiple modifiers with ||
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); });`,
@@ -310,6 +314,13 @@ tester.run('require-ime-safe-submit', rule, {
     },
     {
       code: `<div contenteditable={false} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    // contentEditable={'false'} string expression — also not editable
+    {
+      code: `<div contentEditable={'false'} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<div contenteditable={'false'} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
     },
     // ── guardFunctions option ──────────────────────────────────────────────────
     // basic: named guard function exempts keydown Enter check
@@ -788,9 +799,22 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.onkeydown = (e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); };`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
     },
+    // modifier-gated Enter must not exempt a separate bare key check
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') submitAlt(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') submitAlt(); if (e.key === 'Escape') close(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
     // isComposing guard + non-Enter modifier shortcut + bare Enter → requireKeyCode229 must fire
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.ctrlKey && e.key === 'Enter') submitAlt(); if (e.key === 'Enter') submit(); });`,
       errors: [{ messageId: 'requireKeyCode229' }],
     },
     // ── guardFunctions — guard not in the list → still flagged ────────────────

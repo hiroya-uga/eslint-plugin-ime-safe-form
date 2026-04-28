@@ -1,6 +1,8 @@
 import type { Rule } from 'eslint';
 import type { BaseNode, Node } from 'estree';
 import {
+  containsEnterKeyCheckOutsideModifierGuard,
+  containsKeyCheckOutsideModifierGuard,
   containsEnterKeyCheck,
   containsKeyCheck,
   DEPRECATED_JSX_KEY_EVENTS,
@@ -8,7 +10,6 @@ import {
   hasGuardFunctionCall,
   hasIsComposingCheck,
   hasKeyCode229Check,
-  hasModifierKeyGuard,
   isImeCapableJsxElement,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
@@ -102,8 +103,7 @@ const rule: Rule.RuleModule = {
         const needsSafariKeyCodeGuard =
           checkKeyCodeForSafari &&
           hasKeyCode229Check(body) === false &&
-          containsEnterKeyCheck(body) &&
-          hasModifierKeyGuard(body) === false;
+          containsEnterKeyCheckOutsideModifierGuard(body);
 
         if (needsSafariKeyCodeGuard) {
           context.report({
@@ -120,7 +120,7 @@ const rule: Rule.RuleModule = {
         return;
       }
 
-      if (allowIsComposingGuard && hasModifierKeyGuard(body)) {
+      if (allowIsComposingGuard && containsKeyCheckOutsideModifierGuard(body) === false) {
         return;
       }
 
