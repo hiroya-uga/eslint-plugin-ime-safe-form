@@ -1,6 +1,8 @@
 import type { Rule } from 'eslint';
 import type { BaseNode, Node } from 'estree';
 import {
+  containsEnterKeyCheckOutsideModifierGuard,
+  containsKeyCheckOutsideModifierGuard,
   containsEnterKeyCheck,
   containsKeyCheck,
   DEPRECATED_JSX_KEY_EVENTS,
@@ -8,9 +10,7 @@ import {
   hasGuardFunctionCall,
   hasIsComposingCheck,
   hasKeyCode229Check,
-  hasModifierKeyGuard,
   isImeCapableJsxElement,
-  isString,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
 } from './helpers';
@@ -25,18 +25,15 @@ const messages = {
     "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
 
-const resolveStringArrayOption = ({ rawOption, key }: { rawOption: unknown; key: string }): string[] => {
-  if (
-    rawOption !== null &&
-    rawOption !== undefined &&
-    typeof rawOption === 'object' &&
-    key in rawOption &&
-    Array.isArray((rawOption as Record<string, unknown>)[key])
-  ) {
-    return ((rawOption as Record<string, unknown>)[key] as unknown[]).filter(isString);
-  }
-  return [];
+type RuleOptions = {
+  checkKeyCodeForSafari?: boolean;
+  guardFunctions?: string[];
+  allowComponents?: string[];
 };
+
+// ESLint validates schema before create() is called, so a shape check suffices.
+const isRuleOptions = (value: unknown): value is RuleOptions =>
+  value !== null && typeof value === 'object';
 
 const rule: Rule.RuleModule = {
   meta: {
@@ -70,17 +67,12 @@ const rule: Rule.RuleModule = {
   },
 
   create(context) {
-    const rawOption: unknown = context.options[0];
+    const rawOption = context.options[0];
+    const options: RuleOptions = isRuleOptions(rawOption) ? rawOption : {};
     // Default true: only opt out when explicitly { checkKeyCodeForSafari: false }
-    const checkKeyCodeForSafari = !(
-      rawOption !== null &&
-      rawOption !== undefined &&
-      typeof rawOption === 'object' &&
-      'checkKeyCodeForSafari' in rawOption &&
-      (rawOption as Record<string, unknown>)['checkKeyCodeForSafari'] === false
-    );
-    const guardFunctions = resolveStringArrayOption({ rawOption, key: 'guardFunctions' });
-    const allowComponents = resolveStringArrayOption({ rawOption, key: 'allowComponents' });
+    const checkKeyCodeForSafari = options.checkKeyCodeForSafari !== false;
+    const guardFunctions = options.guardFunctions ?? [];
+    const allowComponents = options.allowComponents ?? [];
 
     /**
      * @param allowIsComposingGuard
@@ -108,7 +100,12 @@ const rule: Rule.RuleModule = {
       const body = handlerNode.body;
 
       if (allowIsComposingGuard && hasIsComposingCheck(body)) {
-        if (checkKeyCodeForSafari && !hasKeyCode229Check(body) && containsEnterKeyCheck(body)) {
+        const needsSafariKeyCodeGuard =
+          checkKeyCodeForSafari &&
+          hasKeyCode229Check(body) === false &&
+          containsEnterKeyCheckOutsideModifierGuard(body);
+
+        if (needsSafariKeyCodeGuard) {
           context.report({
             node: reportNode,
             messageId: 'requireKeyCode229',
@@ -117,11 +114,13 @@ const rule: Rule.RuleModule = {
         return;
       }
 
-      if (allowIsComposingGuard && guardFunctions.length > 0 && hasGuardFunctionCall({ node: body, guardFunctions })) {
+      const hasUserDefinedGuard = guardFunctions.length > 0 && hasGuardFunctionCall({ node: body, guardFunctions });
+
+      if (allowIsComposingGuard && hasUserDefinedGuard) {
         return;
       }
 
-      if (allowIsComposingGuard && hasModifierKeyGuard(body)) {
+      if (allowIsComposingGuard && containsKeyCheckOutsideModifierGuard(body) === false) {
         return;
       }
 
@@ -138,16 +137,18 @@ const rule: Rule.RuleModule = {
       // Pattern 1: element.addEventListener('keydown' | 'keyup' | 'keypress', handler)
       CallExpression(node) {
         const { callee, arguments: args } = node;
-        if (
-          callee.type !== 'MemberExpression' ||
-          callee.property.type !== 'Identifier' ||
-          callee.property.name !== 'addEventListener' ||
-          args.length < 2
-        ) {
+        const isAddEventListenerCall =
+          callee.type === 'MemberExpression' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'addEventListener' &&
+          args.length >= 2;
+
+        if (isAddEventListenerCall === false) {
           return;
         }
 
         const eventArg = args[0];
+
         if (eventArg === undefined) {
           return;
         }
@@ -166,12 +167,15 @@ const rule: Rule.RuleModule = {
       // Pattern 2: element.onkeydown / onkeyup / onkeypress = handler
       AssignmentExpression(node) {
         const { left, right } = node;
+
         if (left.type !== 'MemberExpression' || left.computed || left.property.type !== 'Identifier') {
           return;
         }
 
-        const propName = left.property.name.toLowerCase();
-        if (propName !== 'onkeydown' && propName !== 'onkeyup' && propName !== 'onkeypress') {
+        const propName = left.property.name;
+        const isOnKeyEventProp = propName.startsWith('on') && KEY_EVENTS.has(propName.slice(2));
+
+        if (isOnKeyEventProp === false) {
           return;
         }
 
@@ -186,7 +190,10 @@ const rule: Rule.RuleModule = {
       // Pattern 3: JSX onKeyDown / onKeyUp / onKeyPress
       JSXAttribute(rawNode: unknown) {
         const node = rawNode as JSXAttribute;
-        if (node.name.type !== 'JSXIdentifier' || !JSX_KEY_EVENTS.has(node.name.name)) {
+
+        const isJsxKeyEventProp = node.name.type === 'JSXIdentifier' && JSX_KEY_EVENTS.has(node.name.name);
+
+        if (isJsxKeyEventProp === false) {
           return;
         }
 
@@ -195,6 +202,7 @@ const rule: Rule.RuleModule = {
         }
 
         const value = node.value;
+
         if (value?.type !== 'JSXExpressionContainer') {
           return;
         }

@@ -40,6 +40,16 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.onkeydown = (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); };`,
     },
+    // ── e.nativeEvent.isComposing (React synthetic event workaround) ─────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submit(); }} />;`,
+    },
+    {
+      code: `input.onkeydown = (e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submit(); };`,
+    },
     // ── isComposing guard only (checkKeyCodeForSafari: false) ────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
@@ -51,6 +61,15 @@ tester.run('require-ime-safe-submit', rule, {
     },
     {
       code: `input.onkeydown = (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); };`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    // e.nativeEvent.isComposing with checkKeyCodeForSafari: false
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); }} />;`,
       options: [{ checkKeyCodeForSafari: false }],
     },
     // isComposing guard nested inside the Enter check
@@ -198,9 +217,20 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') submit(); });`,
     },
+    // non-Enter shortcut with modifier is also safe
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'k') openPalette(); });`,
+    },
     // multiple modifiers with ||
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); });`,
+    },
+    // multiple modifiers with && — requiring both is also safe; IME cannot compose
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey && e.metaKey)) submit(); });`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey && e.metaKey)) submitForm(); }} />;`,
     },
     // legacy keyCode
     {
@@ -232,6 +262,13 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
       options: [{ checkKeyCodeForSafari: false }],
+    },
+    // isComposing guard + modifier-gated Enter — requireKeyCode229 must not fire
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.isComposing) return; if (e.key === 'Enter' && e.ctrlKey) submitForm(); }} />;`,
     },
     // ── allowComponents option — named components are not flagged ─────────────
     {
@@ -270,6 +307,20 @@ tester.run('require-ime-safe-submit', rule, {
     },
     {
       code: `<div contenteditable="false" onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    // contentEditable={false} boolean expression — also not editable
+    {
+      code: `<div contentEditable={false} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<div contenteditable={false} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    // contentEditable={'false'} string expression — also not editable
+    {
+      code: `<div contentEditable={'false'} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<div contenteditable={'false'} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
     },
     // ── guardFunctions option ──────────────────────────────────────────────────
     // basic: named guard function exempts keydown Enter check
@@ -311,6 +362,16 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e) && !e.shiftKey) return; if (e.key === 'Enter') submit(); });`,
       options: [{ guardFunctions: ["guardIsComposing"] }],
+    },
+    // ── camelCase DOM assignment (onKeyDown, onKeyUp) — not a valid DOM API ─────
+    // DOM properties are case-sensitive: the valid form is onkeydown (lowercase).
+    // onKeyDown is a React JSX prop, not a DOM property, so assignment via = is
+    // not a recognized pattern and is intentionally not flagged.
+    {
+      code: `input.onKeyDown = (e) => { if (e.key === 'Enter') submit(); };`,
+    },
+    {
+      code: `input.onKeyUp = (e) => { if (e.key === 'Enter') submit(); };`,
     },
   ],
 
@@ -631,7 +692,15 @@ tester.run('require-ime-safe-submit', rule, {
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
     },
     {
+      code: `input.onkeypress = (e) => { switch(e.code) { case 'Enter': submit(); break; } };`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
+    },
+    {
       code: `input.onkeypress = (e) => { switch(e.keyCode) { case 13: submit(); break; } };`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
+    },
+    {
+      code: `input.onkeypress = (e) => { switch(e.which) { case 13: submit(); break; } };`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
     },
     // ── keyup + switch(e.code) ────────────────────────────────────────────────
@@ -687,6 +756,10 @@ tester.run('require-ime-safe-submit', rule, {
       code: `<input onKeyPress={(e) => { switch(e.keyCode) { case 13: submit(); break; } }} />;`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
     },
+    {
+      code: `<input onKeyPress={(e) => { switch(e.which) { case 13: submit(); break; } }} />;`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
+    },
     // ── modifier key — patterns that are NOT safe ────────────────────────────
     // || instead of && — Enter without modifier still triggers
     {
@@ -703,10 +776,55 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keypress', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'keypress' } }],
     },
+    // ── modifier on a non-Enter shortcut must not exempt a bare Enter check ────
+    // A non-Enter modifier shortcut co-exists with an unguarded Enter check
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'k' && e.ctrlKey) openPalette(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // Pattern B variant: modifier outer-if guards only a non-Enter key, Enter is outside
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey) { if (e.key === 'k') openPalette(); } if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submitForm(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `input.onkeydown = (e) => { if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); };`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
+    },
+    // modifier-gated Enter must not exempt a separate bare key check
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') submitAlt(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.ctrlKey && e.key === 'Enter') submitAlt(); if (e.key === 'Escape') close(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // isComposing guard + non-Enter modifier shortcut + bare Enter → requireKeyCode229 must fire
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.ctrlKey && e.key === 'k') openPalette(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.ctrlKey && e.key === 'Enter') submitAlt(); if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
     // ── guardFunctions — guard not in the list → still flagged ────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
       errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    {
+      code: `input.addEventListener('keyup', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keyup" } }],
     },
     // guardFunctions with keypress — keypress is deprecated regardless
     {
@@ -723,10 +841,6 @@ tester.run('require-ime-safe-submit', rule, {
     // ── JSX IME-capable elements beyond <input> ───────────────────────────────
     {
       code: `<textarea onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
-      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
-    },
-    {
-      code: `<select onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
     // contentEditable — makes non-input elements IME-capable
@@ -753,6 +867,17 @@ tester.run('require-ime-safe-submit', rule, {
       options: [{ allowComponents: ['MyInput'] }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
+    // ── JSXMemberExpression (<Namespace.Component>) — always treated as IME-capable ─
+    // allowComponents has no effect; member-expression names cannot be exempted
+    {
+      code: `<Foo.Bar onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `<Foo.Bar onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['Bar'] }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
     // ── JSX FunctionExpression (function keyword, not arrow) ─────────────────
     {
       code: `<input onKeyDown={function(e) { if (e.key === 'Enter') submitForm(); }} />;`,
@@ -777,6 +902,19 @@ tester.run('require-ime-safe-submit', rule, {
     },
     {
       code: `<input onKeyDown={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    // ── e.nativeEvent.isComposing without keyCode 229 ─────────────────────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    {
+      code: `input.onkeydown = (e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); };`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); }} />;`,
       errors: [{ messageId: 'requireKeyCode229' }],
     },
     // isComposing with switch

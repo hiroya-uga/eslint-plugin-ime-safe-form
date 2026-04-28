@@ -32,12 +32,26 @@ export interface JSXAttribute extends BaseNode {
   parent: JSXOpeningElement;
 }
 
-export const isString = (item: unknown): item is string => typeof item === 'string';
-
-export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea', 'select']);
+export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea']);
 
 const CONTENTEDITABLE_PROPS = new Set(['contenteditable', 'contentEditable']);
 const PASCAL_CASE_PATTERN = /^[A-Z]/;
+
+const isExplicitFalseContentEditableValue = (value: JSXAttribute['value']) => {
+  if (value === null) {
+    return false;
+  }
+
+  if (value.type === 'Literal') {
+    return value.value === 'false';
+  }
+
+  return (
+    value.expression !== null &&
+    value.expression.type === 'Literal' &&
+    (value.expression.value === false || value.expression.value === 'false')
+  );
+};
 
 export const isImeCapableJsxElement = ({
   openingElement,
@@ -71,7 +85,7 @@ export const isImeCapableJsxElement = ({
       return false;
     }
 
-    if (attr.value !== null && attr.value.type === 'Literal' && attr.value.value === 'false') {
+    if (isExplicitFalseContentEditableValue(attr.value)) {
       return false;
     }
 
@@ -85,7 +99,7 @@ const ENTER_STRING_PROPS = ['key', 'code'] as const;
 const LEGACY_CODE_PROPS = ['keyCode', 'which'] as const;
 
 export const KEY_EVENTS = new Set(['keydown', 'keyup', 'keypress']);
-// keypress is deprecated: e.isComposing does not exempt it from the rule.
+/** keypress is deprecated: e.isComposing does not exempt it from the rule. */
 export const DEPRECATED_KEY_EVENTS = new Set(['keypress']);
 export const JSX_KEY_EVENTS = new Set(['onKeyDown', 'onKeyUp', 'onKeyPress']);
 export const DEPRECATED_JSX_KEY_EVENTS = new Set(['onKeyPress']);
@@ -164,13 +178,13 @@ const isEnterKeySwitchStatement = (node: Node) => {
   return false;
 };
 
+const isNonFunctionNode = (value: unknown): value is Node =>
+  value !== null && typeof value === 'object' && 'type' in value && !FUNCTION_TYPES.has((value as Node).type);
+
 /**
  * Returns direct child AST nodes, skipping function boundaries and the
  * `parent` back-reference added by ESLint.
  */
-const isNonFunctionNode = (value: unknown): value is Node =>
-  value !== null && typeof value === 'object' && 'type' in value && !FUNCTION_TYPES.has((value as Node).type);
-
 const getChildNodes = (node: Node) => {
   const result: Node[] = [];
   for (const [key, value] of Object.entries(node)) {
@@ -232,6 +246,10 @@ const isKeyCheckBinaryExpression = (node: Node) => {
 /**
  * Check if a SwitchStatement discriminant is a key-related property:
  *   switch(e.key), switch(e.code), switch(e.keyCode), switch(e.which)
+ *
+ * Unlike isEnterKeySwitchStatement, this intentionally does NOT inspect case
+ * values — any switch on a key property is a key check regardless of which
+ * keys are handled.
  */
 const isKeyCheckSwitchStatement = (node: Node) => {
   if (node.type !== 'SwitchStatement') {
@@ -320,7 +338,7 @@ const isPositiveModifierExpression = (node: Node): boolean => {
   if (isModifierKeyMemberExpression(node)) {
     return true;
   }
-  if (node.type === 'LogicalExpression' && node.operator === '||') {
+  if (node.type === 'LogicalExpression' && (node.operator === '||' || node.operator === '&&')) {
     return isPositiveModifierExpression(node.left) && isPositiveModifierExpression(node.right);
   }
   return false;
@@ -328,62 +346,103 @@ const isPositiveModifierExpression = (node: Node): boolean => {
 
 /**
  * Returns true if the LogicalExpression subtree (connected by &&) has one side
- * containing any key check and the other side being a positive modifier
+ * containing an Enter key check and the other side being a positive modifier
  * expression. Recursively handles chained &&.
  *
  *   e.key === 'Enter' && e.ctrlKey               → true
- *   e.ctrlKey && e.key === 'Tab'                 → true
+ *   e.ctrlKey && e.key === 'Tab'                 → false (not Enter)
  *   e.key === 'Enter' && (e.ctrlKey || e.metaKey) → true
  *   e.key === 'Enter' && !e.shiftKey              → false (!modifier ≠ IME guard)
  */
-const andChainHasKeyWithModifier = (node: Node): boolean => {
+const andChainHasKeyWithModifier = ({
+  node,
+  containsRelevantKeyCheck,
+}: {
+  node: Node;
+  containsRelevantKeyCheck: (node: Node | null | undefined) => boolean;
+}): boolean => {
   if (node.type !== 'LogicalExpression' || node.operator !== '&&') {
     return false;
   }
   const { left, right } = node;
-  const leftHasKey = containsKeyCheck(left);
-  const rightHasKey = containsKeyCheck(right);
+  const leftHasRelevantKey = containsRelevantKeyCheck(left);
+  const rightHasRelevantKey = containsRelevantKeyCheck(right);
 
-  if (leftHasKey && isPositiveModifierExpression(right)) {
+  if (leftHasRelevantKey && isPositiveModifierExpression(right)) {
     return true;
   }
-  if (rightHasKey && isPositiveModifierExpression(left)) {
+  if (rightHasRelevantKey && isPositiveModifierExpression(left)) {
     return true;
   }
 
-  return andChainHasKeyWithModifier(left) || andChainHasKeyWithModifier(right);
+  return (
+    andChainHasKeyWithModifier({ node: left, containsRelevantKeyCheck }) ||
+    andChainHasKeyWithModifier({ node: right, containsRelevantKeyCheck })
+  );
 };
 
 /**
- * Returns true if the handler body contains a modifier-key guard that makes
- * IME composition impossible. When a modifier key (Ctrl, Meta, Shift, Alt) is
- * held, the IME cannot be in composition state, so e.isComposing is always
- * false and no guard is needed.
- *
- * Pattern A — Enter + modifier in the same && condition:
- *   if (e.key === 'Enter' && e.ctrlKey) …
- *   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) …
- *
- * Pattern B — outer if whose test is a positive modifier expression, with an
- * Enter check inside the body:
- *   if (e.ctrlKey) { if (e.key === 'Enter') … }
+ * Returns true if the subtree contains a relevant key check that is NOT fully
+ * guarded by a modifier-key condition. A modifier key (Ctrl, Meta, Shift, Alt)
+ * makes IME composition impossible, so key checks that are reachable only while
+ * a modifier is held are exempt.
  */
-export const hasModifierKeyGuard = (node: Node | null | undefined) =>
-  walkAst({
-    predicate: (candidateNode) => {
-      if (candidateNode.type !== 'IfStatement') {
-        return false;
-      }
+const containsRelevantKeyCheckOutsideModifierGuard = ({
+  node,
+  containsRelevantKeyCheck,
+  matchesRelevantKeyCheckNode,
+  visited = new Set<object>(),
+}: {
+  node: Node | null | undefined;
+  containsRelevantKeyCheck: (node: Node | null | undefined) => boolean;
+  matchesRelevantKeyCheckNode: (node: Node) => boolean;
+  visited?: Set<object>;
+}): boolean => {
+  if (node === null || node === undefined || typeof node !== 'object' || visited.has(node)) {
+    return false;
+  }
+  visited.add(node);
 
-      const { test, consequent } = candidateNode;
+  if (node.type === 'IfStatement') {
+    const consequentIsModifierGuarded =
+      andChainHasKeyWithModifier({ node: node.test, containsRelevantKeyCheck }) ||
+      isPositiveModifierExpression(node.test);
 
-      if (andChainHasKeyWithModifier(test)) {
-        return true;
-      }
+    if (consequentIsModifierGuarded) {
+      return containsRelevantKeyCheckOutsideModifierGuard({
+        node: node.alternate,
+        containsRelevantKeyCheck,
+        matchesRelevantKeyCheckNode,
+        visited,
+      });
+    }
+  }
 
-      return isPositiveModifierExpression(test) && containsKeyCheck(consequent);
-    },
+  return (
+    matchesRelevantKeyCheckNode(node) ||
+    getChildNodes(node).some((child) =>
+      containsRelevantKeyCheckOutsideModifierGuard({
+        node: child,
+        containsRelevantKeyCheck,
+        matchesRelevantKeyCheckNode,
+        visited,
+      }),
+    )
+  );
+};
+
+export const containsEnterKeyCheckOutsideModifierGuard = (node: Node | null | undefined) =>
+  containsRelevantKeyCheckOutsideModifierGuard({
     node,
+    containsRelevantKeyCheck: containsEnterKeyCheck,
+    matchesRelevantKeyCheckNode: isEnterKeyNode,
+  });
+
+export const containsKeyCheckOutsideModifierGuard = (node: Node | null | undefined) =>
+  containsRelevantKeyCheckOutsideModifierGuard({
+    node,
+    containsRelevantKeyCheck: containsKeyCheck,
+    matchesRelevantKeyCheckNode: isKeyCheckNode,
   });
 
 /**
