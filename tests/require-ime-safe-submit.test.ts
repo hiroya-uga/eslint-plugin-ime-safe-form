@@ -781,10 +781,6 @@ tester.run('require-ime-safe-submit', rule, {
       code: `<textarea onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
-    {
-      code: `<select onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
-      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
-    },
     // contentEditable — makes non-input elements IME-capable
     {
       code: `<div contentEditable onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,

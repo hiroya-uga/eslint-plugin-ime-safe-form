@@ -33,7 +33,7 @@ export interface JSXAttribute extends BaseNode {
 }
 
 
-export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea', 'select']);
+export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea']);
 
 const CONTENTEDITABLE_PROPS = new Set(['contenteditable', 'contentEditable']);
 const PASCAL_CASE_PATTERN = /^[A-Z]/;
