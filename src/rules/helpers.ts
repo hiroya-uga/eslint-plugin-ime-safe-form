@@ -32,7 +32,6 @@ export interface JSXAttribute extends BaseNode {
   parent: JSXOpeningElement;
 }
 
-export const isString = (item: unknown): item is string => typeof item === 'string';
 
 export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea', 'select']);
 

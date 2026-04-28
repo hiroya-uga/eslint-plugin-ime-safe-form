@@ -137,13 +137,13 @@ const rule: Rule.RuleModule = {
       // Pattern 1: element.addEventListener('keydown' | 'keyup' | 'keypress', handler)
       CallExpression(node) {
         const { callee, arguments: args } = node;
+        const isAddEventListenerCall =
+          callee.type === 'MemberExpression' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'addEventListener' &&
+          args.length >= 2;
 
-        if (
-          callee.type !== 'MemberExpression' ||
-          callee.property.type !== 'Identifier' ||
-          callee.property.name !== 'addEventListener' ||
-          args.length < 2
-        ) {
+        if (isAddEventListenerCall === false) {
           return;
         }
 
@@ -191,7 +191,9 @@ const rule: Rule.RuleModule = {
       JSXAttribute(rawNode: unknown) {
         const node = rawNode as JSXAttribute;
 
-        if (node.name.type !== 'JSXIdentifier' || !JSX_KEY_EVENTS.has(node.name.name)) {
+        const isJsxKeyEventProp = node.name.type === 'JSXIdentifier' && JSX_KEY_EVENTS.has(node.name.name);
+
+        if (isJsxKeyEventProp === false) {
           return;
         }
 
