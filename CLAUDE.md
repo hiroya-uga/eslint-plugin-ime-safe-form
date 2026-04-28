@@ -111,11 +111,10 @@ Publishing a GitHub Release triggers the workflow: typecheck → test → `npm p
 
 Steps:
 
-1. Merge the release branch into `main` via pull request (direct push to `main` is blocked by branch protection)
-2. Create a new branch (e.g. `release/vX.Y.Z-version-bump`), bump the version in `package.json`, commit with `git commit -m "Release vX.Y.Z"`, and open a PR into `main`
-3. Merge that PR once CI passes
-4. On the updated `main`, create and push a tag: `git tag vX.Y.Z && git push --tags`
-5. Create a GitHub Release from the tag — Actions publishes to npm automatically
+1. On the release branch, bump the version in `package.json` and commit: `git commit -m "Release vX.Y.Z"`
+2. Merge the release branch into `main` via pull request (direct push to `main` is blocked by branch protection)
+3. Once merged, create and push a tag: `git tag vX.Y.Z && git push --tags`
+4. Create a GitHub Release from the tag — Actions publishes to npm automatically
 
 Version conventions:
 - **patch** (x.x.Z) — bug fixes, false positive corrections
