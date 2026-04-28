@@ -221,6 +221,13 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); });`,
     },
+    // multiple modifiers with && — requiring both is also safe; IME cannot compose
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey && e.metaKey)) submit(); });`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey && e.metaKey)) submitForm(); }} />;`,
+    },
     // legacy keyCode
     {
       code: `input.addEventListener('keydown', (e) => { if (e.keyCode === 13 && e.ctrlKey) submit(); });`,
@@ -251,6 +258,13 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
       options: [{ checkKeyCodeForSafari: false }],
+    },
+    // isComposing guard + modifier-gated Enter — requireKeyCode229 must not fire
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter' && e.ctrlKey) submit(); });`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (e.isComposing) return; if (e.key === 'Enter' && e.ctrlKey) submitForm(); }} />;`,
     },
     // ── allowComponents option — named components are not flagged ─────────────
     {
@@ -289,6 +303,13 @@ tester.run('require-ime-safe-submit', rule, {
     },
     {
       code: `<div contenteditable="false" onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    // contentEditable={false} boolean expression — also not editable
+    {
+      code: `<div contentEditable={false} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<div contenteditable={false} onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
     },
     // ── guardFunctions option ──────────────────────────────────────────────────
     // basic: named guard function exempts keydown Enter check
@@ -650,7 +671,15 @@ tester.run('require-ime-safe-submit', rule, {
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
     },
     {
+      code: `input.onkeypress = (e) => { switch(e.code) { case 'Enter': submit(); break; } };`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
+    },
+    {
       code: `input.onkeypress = (e) => { switch(e.keyCode) { case 13: submit(); break; } };`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
+    },
+    {
+      code: `input.onkeypress = (e) => { switch(e.which) { case 13: submit(); break; } };`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
     },
     // ── keyup + switch(e.code) ────────────────────────────────────────────────
@@ -706,6 +735,10 @@ tester.run('require-ime-safe-submit', rule, {
       code: `<input onKeyPress={(e) => { switch(e.keyCode) { case 13: submit(); break; } }} />;`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
     },
+    {
+      code: `<input onKeyPress={(e) => { switch(e.which) { case 13: submit(); break; } }} />;`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
+    },
     // ── modifier key — patterns that are NOT safe ────────────────────────────
     // || instead of && — Enter without modifier still triggers
     {
@@ -726,6 +759,10 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
       errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    {
+      code: `input.addEventListener('keyup', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keyup" } }],
     },
     // guardFunctions with keypress — keypress is deprecated regardless
     {
@@ -770,6 +807,17 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `<OtherInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       options: [{ allowComponents: ['MyInput'] }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // ── JSXMemberExpression (<Namespace.Component>) — always treated as IME-capable ─
+    // allowComponents has no effect; member-expression names cannot be exempted
+    {
+      code: `<Foo.Bar onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `<Foo.Bar onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['Bar'] }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
     // ── JSX FunctionExpression (function keyword, not arrow) ─────────────────

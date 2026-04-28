@@ -75,6 +75,16 @@ export const isImeCapableJsxElement = ({
       return false;
     }
 
+    if (
+      attr.value !== null &&
+      attr.value.type === 'JSXExpressionContainer' &&
+      attr.value.expression !== null &&
+      attr.value.expression.type === 'Literal' &&
+      attr.value.expression.value === false
+    ) {
+      return false;
+    }
+
     return true;
   });
 };
@@ -324,7 +334,7 @@ const isPositiveModifierExpression = (node: Node): boolean => {
   if (isModifierKeyMemberExpression(node)) {
     return true;
   }
-  if (node.type === 'LogicalExpression' && node.operator === '||') {
+  if (node.type === 'LogicalExpression' && (node.operator === '||' || node.operator === '&&')) {
     return isPositiveModifierExpression(node.left) && isPositiveModifierExpression(node.right);
   }
   return false;

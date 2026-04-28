@@ -99,12 +99,13 @@ const rule: Rule.RuleModule = {
       const body = handlerNode.body;
 
       if (allowIsComposingGuard && hasIsComposingCheck(body)) {
-        if (
+        const needsSafariKeyCodeGuard =
           checkKeyCodeForSafari &&
-          !hasKeyCode229Check(body) &&
+          hasKeyCode229Check(body) === false &&
           containsEnterKeyCheck(body) &&
-          !hasModifierKeyGuard(body)
-        ) {
+          hasModifierKeyGuard(body) === false;
+
+        if (needsSafariKeyCodeGuard) {
           context.report({
             node: reportNode,
             messageId: 'requireKeyCode229',
@@ -113,7 +114,9 @@ const rule: Rule.RuleModule = {
         return;
       }
 
-      if (allowIsComposingGuard && guardFunctions.length > 0 && hasGuardFunctionCall({ node: body, guardFunctions })) {
+      const hasUserDefinedGuard = guardFunctions.length > 0 && hasGuardFunctionCall({ node: body, guardFunctions });
+
+      if (allowIsComposingGuard && hasUserDefinedGuard) {
         return;
       }
 
@@ -134,6 +137,7 @@ const rule: Rule.RuleModule = {
       // Pattern 1: element.addEventListener('keydown' | 'keyup' | 'keypress', handler)
       CallExpression(node) {
         const { callee, arguments: args } = node;
+
         if (
           callee.type !== 'MemberExpression' ||
           callee.property.type !== 'Identifier' ||
@@ -144,6 +148,7 @@ const rule: Rule.RuleModule = {
         }
 
         const eventArg = args[0];
+
         if (eventArg === undefined) {
           return;
         }
@@ -162,12 +167,15 @@ const rule: Rule.RuleModule = {
       // Pattern 2: element.onkeydown / onkeyup / onkeypress = handler
       AssignmentExpression(node) {
         const { left, right } = node;
+
         if (left.type !== 'MemberExpression' || left.computed || left.property.type !== 'Identifier') {
           return;
         }
 
-        const propName = left.property.name.toLowerCase();
-        if (propName !== 'onkeydown' && propName !== 'onkeyup' && propName !== 'onkeypress') {
+        const propName = left.property.name;
+        const isOnKeyEventProp = propName.startsWith('on') && KEY_EVENTS.has(propName.slice(2));
+
+        if (isOnKeyEventProp === false) {
           return;
         }
 
@@ -182,6 +190,7 @@ const rule: Rule.RuleModule = {
       // Pattern 3: JSX onKeyDown / onKeyUp / onKeyPress
       JSXAttribute(rawNode: unknown) {
         const node = rawNode as JSXAttribute;
+
         if (node.name.type !== 'JSXIdentifier' || !JSX_KEY_EVENTS.has(node.name.name)) {
           return;
         }
@@ -191,6 +200,7 @@ const rule: Rule.RuleModule = {
         }
 
         const value = node.value;
+
         if (value?.type !== 'JSXExpressionContainer') {
           return;
         }

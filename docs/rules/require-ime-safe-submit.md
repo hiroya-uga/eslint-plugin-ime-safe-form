@@ -113,6 +113,11 @@ input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
 });
 
+// ✅ Multiple modifiers with && — requiring both is also safe
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey && e.metaKey)) submit();
+});
+
 // ✅ Outer if with modifier is also recognised
 input.addEventListener('keydown', (e) => {
   if (e.ctrlKey) {
@@ -173,7 +178,7 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`) are only checked on elem
 | Element | Flagged |
 |---|---|
 | `<input>`, `<textarea>`, `<select>` | Yes |
-| Any element with `contentEditable` / `contenteditable` (not `"false"`) | Yes |
+| Any element with `contentEditable` / `contenteditable` (not `"false"` or `{false}`) | Yes |
 | PascalCase components (e.g. `<MyInput>`) | Yes (rendered output unknown) |
 | Other elements (`<div>`, `<button>`, `<span>`, …) | No |
 
@@ -207,6 +212,10 @@ Use the [`allowComponents`](#allowcomponents-default-) option to exempt specific
   ```
 
 - **`addEventListener` and `onkeydown =` do not scope by element type.** The rule cannot determine the element the handler is attached to at static analysis time. Even if the handler is on a `<div>`, it will be flagged. Only JSX patterns benefit from element-type scoping.
+
+- **`<Namespace.Component>` syntax is always treated as IME-capable.** Member-expression component names (e.g. `<UI.Input>`) are always flagged. The `allowComponents` option only accepts simple identifiers (e.g. `'Input'`), so there is no way to exempt `<UI.Input>` without using `// eslint-disable`.
+
+- **`guardFunctions` trusts the listed functions blindly, including for the Safari `keyCode === 229` requirement.** The rule cannot inspect the body of the guard function. Any function in `guardFunctions` suppresses `requireKeyCode229` as well as `requireImeSafeSubmit`. Make sure the guard function handles both `e.isComposing` and `e.keyCode === 229` if Safari support is needed.
 
 ## Options
 
@@ -308,7 +317,7 @@ input.addEventListener('keydown', (e) => {
 > The `keyCode === 229` requirement only applies when an Enter key check is present. Non-Enter key checks (e.g. `e.key === 'Escape'`) are not subject to this additional requirement, because the Safari event-order issue is specific to Enter confirming IME candidates.
 
 > [!NOTE]
-> `e.keyCode` is deprecated but remains the only reliable way to detect IME composition in Safari's event order. Set `checkKeyCodeForSafari: false` if Safari support is not a concern — `e.isComposing` alone will then be accepted.
+> `e.keyCode` is deprecated but remains the only reliable way to detect IME composition in Safari's event order up to and including Safari 16 (WebKit). Versions from Safari 16.4 onward have partially fixed this, but the behaviour is inconsistent across platforms. Set `checkKeyCodeForSafari: false` if Safari support is not a concern — `e.isComposing` alone will then be accepted.
 
 ## When Not to Use
 
