@@ -32,7 +32,7 @@ type RuleOptions = {
 
 // ESLint validates schema before create() is called, so a shape check suffices.
 const isRuleOptions = (value: unknown): value is RuleOptions =>
-  value !== null && value !== undefined && typeof value === 'object';
+  value !== null && typeof value === 'object';
 
 const rule: Rule.RuleModule = {
   meta: {
