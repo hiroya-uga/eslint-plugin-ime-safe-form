@@ -10,7 +10,6 @@ import {
   hasKeyCode229Check,
   hasModifierKeyGuard,
   isImeCapableJsxElement,
-  isString,
   JSX_KEY_EVENTS,
   KEY_EVENTS,
 } from './helpers';
@@ -25,18 +24,15 @@ const messages = {
     "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
 
-const resolveStringArrayOption = ({ rawOption, key }: { rawOption: unknown; key: string }): string[] => {
-  if (
-    rawOption !== null &&
-    rawOption !== undefined &&
-    typeof rawOption === 'object' &&
-    key in rawOption &&
-    Array.isArray((rawOption as Record<string, unknown>)[key])
-  ) {
-    return ((rawOption as Record<string, unknown>)[key] as unknown[]).filter(isString);
-  }
-  return [];
+type RuleOptions = {
+  checkKeyCodeForSafari?: boolean;
+  guardFunctions?: string[];
+  allowComponents?: string[];
 };
+
+// ESLint validates schema before create() is called, so a shape check suffices.
+const isRuleOptions = (value: unknown): value is RuleOptions =>
+  value !== null && value !== undefined && typeof value === 'object';
 
 const rule: Rule.RuleModule = {
   meta: {
@@ -70,17 +66,12 @@ const rule: Rule.RuleModule = {
   },
 
   create(context) {
-    const rawOption: unknown = context.options[0];
+    const rawOption = context.options[0];
+    const options: RuleOptions = isRuleOptions(rawOption) ? rawOption : {};
     // Default true: only opt out when explicitly { checkKeyCodeForSafari: false }
-    const checkKeyCodeForSafari = !(
-      rawOption !== null &&
-      rawOption !== undefined &&
-      typeof rawOption === 'object' &&
-      'checkKeyCodeForSafari' in rawOption &&
-      (rawOption as Record<string, unknown>)['checkKeyCodeForSafari'] === false
-    );
-    const guardFunctions = resolveStringArrayOption({ rawOption, key: 'guardFunctions' });
-    const allowComponents = resolveStringArrayOption({ rawOption, key: 'allowComponents' });
+    const checkKeyCodeForSafari = options.checkKeyCodeForSafari !== false;
+    const guardFunctions = options.guardFunctions ?? [];
+    const allowComponents = options.allowComponents ?? [];
 
     /**
      * @param allowIsComposingGuard
@@ -108,7 +99,12 @@ const rule: Rule.RuleModule = {
       const body = handlerNode.body;
 
       if (allowIsComposingGuard && hasIsComposingCheck(body)) {
-        if (checkKeyCodeForSafari && !hasKeyCode229Check(body) && containsEnterKeyCheck(body)) {
+        if (
+          checkKeyCodeForSafari &&
+          !hasKeyCode229Check(body) &&
+          containsEnterKeyCheck(body) &&
+          !hasModifierKeyGuard(body)
+        ) {
           context.report({
             node: reportNode,
             messageId: 'requireKeyCode229',
