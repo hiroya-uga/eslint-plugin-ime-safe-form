@@ -108,7 +108,7 @@ input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.ctrlKey) submit();
 });
 
-// ✅ Multiple modifiers with || are also recognised
+// ✅ Multiple modifiers with || are also recognized
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
 });
@@ -118,7 +118,7 @@ input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey && e.metaKey)) submit();
 });
 
-// ✅ Outer if with modifier is also recognised
+// ✅ Outer if with modifier is also recognized
 input.addEventListener('keydown', (e) => {
   if (e.ctrlKey) {
     if (e.key === 'Enter') submit();
@@ -147,6 +147,9 @@ input.addEventListener('keydown', (e) => {
 ```jsx
 // ✅ JSX — isComposing + keyCode 229 guard
 <input onKeyDown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submitForm(); }} />
+
+// ✅ React synthetic event — e.nativeEvent.isComposing works identically
+<input onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submitForm(); }} />
 
 // ✅ JSX — onSubmit is correct
 <form onSubmit={(e) => { e.preventDefault(); submitForm(); }}>
@@ -177,9 +180,10 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`) are only checked on elem
 
 | Element | Flagged |
 |---|---|
-| `<input>`, `<textarea>`, `<select>` | Yes |
+| `<input>`, `<textarea>` | Yes |
 | Any element with `contentEditable` / `contenteditable` (not `"false"` or `{false}`) | Yes |
 | PascalCase components (e.g. `<MyInput>`) | Yes (rendered output unknown) |
+| `<select>` | No (uses a dropdown picker; IME text input does not apply) |
 | Other elements (`<div>`, `<button>`, `<span>`, …) | No |
 
 Use the [`allowComponents`](#allowcomponents-default-) option to exempt specific PascalCase components you know are not IME-capable.
@@ -189,6 +193,7 @@ Use the [`allowComponents`](#allowcomponents-default-) option to exempt specific
 | Pattern | Reason |
 |---|---|
 | `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
+| `e.nativeEvent.isComposing \|\| e.nativeEvent.keyCode === 229` (React synthetic event) | React wraps the native event; `nativeEvent.isComposing` is equivalent to the native property |
 | `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
 | Guard function call in `IfStatement` (with `guardFunctions` option) | Function is declared as an equivalent IME guard |
 | Key check combined with a modifier via `&&` (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`) | IME cannot be composing while a modifier key is held |
@@ -199,9 +204,9 @@ Use the [`allowComponents`](#allowcomponents-default-) option to exempt specific
 
 ### Known limitations
 
-- **Ternary `isComposing` guard is not recognised.** Only `IfStatement` tests are checked. `e.isComposing ? null : (e.key === 'Enter' && submit())` will be flagged even though it is IME-safe. Use an `if` statement instead.
+- **Ternary `isComposing` guard is not recognized.** Only `IfStatement` tests are checked. `e.isComposing ? null : (e.key === 'Enter' && submit())` will be flagged even though it is IME-safe. Use an `if` statement instead.
 - **`!==`/`!=` patterns in a block body are detected but not in isolation.** If the entire handler never reaches the target code after the key check, the flag may be a false positive. Use `// eslint-disable-next-line` for those rare cases.
-- **`isComposing` guard without early exit is not verified.** The rule recognises any `IfStatement` whose condition references `e.isComposing`, regardless of whether the body actually returns or throws. Code like `if (e.isComposing) console.log("composing")` (no `return`) satisfies the check even though it does not prevent key processing. Always pair the guard with `return` (or equivalent).
+- **`isComposing` guard without early exit is not verified.** The rule recognizes any `IfStatement` whose condition references `e.isComposing`, regardless of whether the body actually returns or throws. Code like `if (e.isComposing) console.log("composing")` (no `return`) satisfies the check even though it does not prevent key processing. Always pair the guard with `return` (or equivalent).
 - **Destructured event parameters are not detected.** If the event object is destructured in the handler signature, the rule cannot see the key check and will not flag it. Write the handler as `(e) => { if (e.key === 'Enter') … }` rather than `({ key }) => { if (key === 'Enter') … }`.
 
   ```js
@@ -247,7 +252,7 @@ input.addEventListener('keydown', (e) => {
 });
 ```
 
-Negated calls (`if (!guardIsComposing(e))`) and calls inside compound conditions (`&&`, `||`) are also recognised.
+Negated calls (`if (!guardIsComposing(e))`) and calls inside compound conditions (`&&`, `||`) are also recognized.
 
 > [!NOTE]
 > The rule cannot inspect the body of the guard function. It trusts that any function listed in `guardFunctions` correctly handles IME state, including the Safari `keyCode === 229` case. The `requireKeyCode229` check is skipped for these handlers.
