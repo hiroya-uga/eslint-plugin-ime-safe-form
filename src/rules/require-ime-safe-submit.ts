@@ -18,9 +18,9 @@ import type { JSXAttribute } from './helpers';
 
 const messages = {
   requireImeSafeSubmit:
-    "Key check detected in '{{eventName}}' without an IME composition guard. Add 'if (e.isComposing) return;' before the check, or handle submission via the form's 'submit' event.",
+    "Key check detected in '{{eventName}}' without an IME composition guard. Add 'if (e.isComposing) return;' before the check.",
   keypressProhibited:
-    "'keypress' is deprecated. Use 'keydown' with an e.isComposing guard instead, or handle submission via the form's 'submit' event.",
+    "'keypress' is deprecated. Use 'keydown' with an 'if (e.isComposing) return;' guard instead.",
   requireKeyCode229:
     "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
