@@ -49,6 +49,7 @@ const getJsxMemberExpressionName = (node: JSXMemberExpression): string => {
 
 const CONTENTEDITABLE_PROPS = new Set(['contenteditable', 'contentEditable']);
 const PASCAL_CASE_PATTERN = /^[A-Z]/;
+const CUSTOM_ELEMENT_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
 const isExplicitFalseContentEditableValue = (value: JSXAttribute['value']) => {
   if (value === null) {
@@ -66,18 +67,52 @@ const isExplicitFalseContentEditableValue = (value: JSXAttribute['value']) => {
   );
 };
 
+export type JsxComponentsOption = {
+  default: 'flag' | 'ignore';
+  allowComponents: string[];
+  disallowComponents: string[];
+};
+
+export type CustomElementsOption = {
+  default: 'flag' | 'ignore';
+  allowElements: string[];
+  disallowElements: string[];
+};
+
+const resolveJsxComponent = ({ name, option }: { name: string; option: JsxComponentsOption }): boolean => {
+  if (option.disallowComponents.includes(name)) {
+    return true;
+  }
+  if (option.allowComponents.includes(name)) {
+    return false;
+  }
+  return option.default === 'flag';
+};
+
+const resolveCustomElement = ({ name, option }: { name: string; option: CustomElementsOption }): boolean => {
+  if (option.disallowElements.includes(name)) {
+    return true;
+  }
+  if (option.allowElements.includes(name)) {
+    return false;
+  }
+  return option.default === 'flag';
+};
+
 export const isImeCapableJsxElement = ({
   openingElement,
-  allowComponents,
+  jsxComponents,
+  customElements,
 }: {
   openingElement: JSXOpeningElement;
-  allowComponents: string[];
+  jsxComponents: JsxComponentsOption;
+  customElements: CustomElementsOption;
 }) => {
   const { name: nameNode, attributes } = openingElement;
 
   if (nameNode.type === 'JSXMemberExpression') {
     const fullName = getJsxMemberExpressionName(nameNode);
-    return !allowComponents.includes(fullName);
+    return resolveJsxComponent({ name: fullName, option: jsxComponents });
   }
 
   if (nameNode.type !== 'JSXIdentifier') {
@@ -87,7 +122,11 @@ export const isImeCapableJsxElement = ({
   const elementName = nameNode.name;
 
   if (PASCAL_CASE_PATTERN.test(elementName)) {
-    return !allowComponents.includes(elementName);
+    return resolveJsxComponent({ name: elementName, option: jsxComponents });
+  }
+
+  if (CUSTOM_ELEMENT_PATTERN.test(elementName)) {
+    return resolveCustomElement({ name: elementName, option: customElements });
   }
 
   if (IME_CAPABLE_ELEMENTS.has(elementName)) {
@@ -119,8 +158,8 @@ const LEGACY_CODE_PROPS = ['keyCode', 'which'] as const;
 export const KEY_EVENTS = new Set(['keydown', 'keyup', 'keypress']);
 /** keypress is deprecated: e.isComposing does not exempt it from the rule. */
 export const DEPRECATED_KEY_EVENTS = new Set(['keypress']);
-export const JSX_KEY_EVENTS = new Set(['onKeyDown', 'onKeyUp', 'onKeyPress']);
-export const DEPRECATED_JSX_KEY_EVENTS = new Set(['onKeyPress']);
+export const JSX_KEY_EVENTS = new Set(['onKeyDown', 'onKeyUp', 'onKeyPress', 'onkeydown', 'onkeyup', 'onkeypress']);
+export const DEPRECATED_JSX_KEY_EVENTS = new Set(['onKeyPress', 'onkeypress']);
 
 const isMemberWithProp = ({ node, propName }: { node: Node; propName: string }) =>
   node.type === 'MemberExpression' &&

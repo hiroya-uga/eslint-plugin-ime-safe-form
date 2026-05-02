@@ -387,6 +387,66 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.onKeyUp = (e) => { if (e.key === 'Enter') submit(); };`,
     },
+    // ── lowercase JSX event attributes (onkeydown / onkeyup / onkeypress) ───────
+    {
+      code: `<input onkeydown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); }} />;`,
+    },
+    {
+      code: `<input onkeyup={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); }} />;`,
+    },
+    {
+      code: `<input onkeydown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    // non-IME-capable element with lowercase event — never flagged
+    {
+      code: `<div onkeydown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    {
+      code: `<button onkeydown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
+    },
+    // ── customElements option — default: 'ignore' (current default) ──────────────
+    // Custom elements are not flagged unless explicitly configured.
+    {
+      code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+    },
+    {
+      code: `<sl-input onkeydown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+    },
+    {
+      code: `<my-text-field onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+    },
+    // customElements.allowElements — explicitly ignored even when default is 'flag'
+    {
+      code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ customElements: { default: 'flag', allowElements: ['sl-input'] } }],
+    },
+    // customElements.default: 'flag', but allowElements excludes this element
+    {
+      code: `<my-button onKeyDown={(e) => { if (e.key === 'Enter') doSomething(); }} />;`,
+      options: [{ customElements: { default: 'flag', allowElements: ['my-button'] } }],
+    },
+    // ── jsxComponents option ──────────────────────────────────────────────────────
+    // default: 'ignore' — PascalCase components not flagged
+    {
+      code: `<MyInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ jsxComponents: { default: 'ignore' } }],
+    },
+    // jsxComponents.allowComponents — same effect as deprecated top-level allowComponents
+    {
+      code: `<MyInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ jsxComponents: { allowComponents: ['MyInput'] } }],
+    },
+    // MemberExpression with default: 'ignore'
+    {
+      code: `<UI.Input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ jsxComponents: { default: 'ignore' } }],
+    },
+    // default: 'ignore' — component not in disallowComponents is not flagged
+    {
+      code: `<MyButton onKeyDown={(e) => { if (e.key === 'Enter') doSomething(); }} />;`,
+      options: [{ jsxComponents: { default: 'ignore', disallowComponents: ['MyInput'] } }],
+    },
   ],
 
   invalid: [
@@ -971,6 +1031,88 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `window.addEventListener('keypress', (e) => { if (e.key === 'Enter') submit(); });`,
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'keypress' } }],
+    },
+    // ── lowercase JSX event attributes — missing isComposing guard ────────────
+    {
+      code: `<input onkeydown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
+    },
+    {
+      code: `<input onkeyup={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeyup' } }],
+    },
+    {
+      code: `<input onkeypress={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
+    },
+    {
+      code: `<textarea onkeydown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
+    },
+    // lowercase onkeydown with isComposing only → requireKeyCode229
+    {
+      code: `<input onkeydown={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    // onkeypress with isComposing guard — still prohibited
+    {
+      code: `<input onkeypress={(e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
+    },
+    // ── customElements option ─────────────────────────────────────────────────
+    // default: 'flag' — all custom elements flagged
+    {
+      code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ customElements: { default: 'flag' } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `<my-text-field onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ customElements: { default: 'flag' } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // default: 'flag' with lowercase event attribute
+    {
+      code: `<sl-input onkeydown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ customElements: { default: 'flag' } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
+    },
+    // disallowElements — explicitly flag a specific element (even when default is 'ignore')
+    {
+      code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ customElements: { disallowElements: ['sl-input'] } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // default: 'flag', allowElements excludes another element — this one is still flagged
+    {
+      code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ customElements: { default: 'flag', allowElements: ['my-button'] } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // ── jsxComponents option ──────────────────────────────────────────────────
+    // disallowComponents — explicitly flag a named component
+    {
+      code: `<MyInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ jsxComponents: { disallowComponents: ['MyInput'] } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // default: 'ignore' but disallowComponents overrides for named component
+    {
+      code: `<MyInput onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ jsxComponents: { default: 'ignore', disallowComponents: ['MyInput'] } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // MemberExpression with disallowComponents
+    {
+      code: `<UI.Input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ jsxComponents: { disallowComponents: ['UI.Input'] } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // default: 'ignore' but MemberExpression in disallowComponents is still flagged
+    {
+      code: `<UI.Input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ jsxComponents: { default: 'ignore', disallowComponents: ['UI.Input'] } }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
   ],
 });

@@ -88,8 +88,12 @@ input.addEventListener('keydown', (e) => {
 // JSX — onKeyDown without isComposing guard on an IME-capable element
 <input onKeyDown={(e) => { if (e.key === 'Enter') submitForm(); }} />
 
+// JSX — lowercase attribute name (used with Web Components and non-React frameworks)
+<input onkeydown={(e) => { if (e.key === 'Enter') submitForm(); }} />
+
 // JSX — onKeyPress always prohibited
 <input onKeyPress={(e) => { if (e.key === 'Enter') submitForm(); }} />
+<input onkeypress={(e) => { if (e.key === 'Enter') submitForm(); }} />
 ```
 
 ### Examples of **correct** code
@@ -169,24 +173,24 @@ input.addEventListener('keydown', (e) => {
 | `addEventListener('keypress', handler)` | Always flagged (deprecated event) |
 | `onkeydown` / `onkeyup` / `onkeypress` property assignment | `el.onkeydown = e => { if (e.key === '…') … }` |
 | JSX `onKeyDown` / `onKeyUp` prop on IME-capable elements | `<input onKeyDown={e => { if (e.key === '…') … }} />` |
-| JSX `onKeyPress` prop | Always flagged (deprecated event) |
+| JSX `onkeydown` / `onkeyup` prop on IME-capable elements | `<input onkeydown={e => { if (e.key === '…') … }} />` |
+| JSX `onKeyPress` / `onkeypress` prop | Always flagged (deprecated event) |
 | `e.key` / `e.code` comparison (any value) | `if (e.key === 'Enter') …` / `if (e.key !== 'Escape') return` |
 | Legacy `e.keyCode` / `e.which` comparison (any value) | `if (e.keyCode === 13) …` / `if (e.keyCode !== 13) return` |
 | `switch` on `e.key` / `e.code` / `e.keyCode` / `e.which` | `switch(e.key) { case 'Enter': … }` |
 
 ### IME-capable elements (JSX only)
 
-The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`) are only checked on elements where IME input is possible. Key checks on other elements (such as `<div>` or `<button>`) are not flagged.
+The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, `onkeypress`) are only checked on elements where IME input is possible. Key checks on other elements (such as `<div>` or `<button>`) are not flagged.
 
-| Element | Flagged |
+| Element | Flagged by default |
 |---|---|
 | `<input>`, `<textarea>` | Yes |
 | Any element with `contentEditable` / `contenteditable` (not `"false"`, `{false}`, or `{'false'}`) | Yes |
-| PascalCase components (e.g. `<MyInput>`) | Yes (rendered output unknown) |
+| PascalCase components (e.g. `<MyInput>`, `<UI.Input>`) | Yes (rendered output unknown) — configurable via [`jsxComponents`](#jsxcomponents) |
+| Custom elements (e.g. `<sl-input>`, `<my-text-field>`) | No — configurable via [`customElements`](#customelements) |
 | `<select>` | No (uses a dropdown picker; IME text input does not apply) |
 | Other elements (`<div>`, `<button>`, `<span>`, …) | No |
-
-Use the [`allowComponents`](#allowcomponents-default-) option to exempt specific PascalCase components you know are not IME-capable.
 
 ### Not flagged
 
@@ -258,14 +262,108 @@ Negated calls (`if (!guardIsComposing(e))`) and calls inside compound conditions
 > [!NOTE]
 > `guardFunctions` has no effect on `keypress` handlers — `keypress` is prohibited regardless of any guard.
 
-### `allowComponents` (default: `[]`)
+### `jsxComponents`
+
+Controls how PascalCase components and dot-notation components (e.g. `<MyInput>`, `<UI.Input>`) are treated in JSX.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `default` | `'flag' \| 'ignore'` | `'flag'` | Default behavior for components not in either list |
+| `allowComponents` | `string[]` | `[]` | Components to never flag (overrides `default: 'flag'`) |
+| `disallowComponents` | `string[]` | `[]` | Components to always flag (overrides `default: 'ignore'`) |
+
+```js
+// eslint.config.js
+export default [
+  {
+    ...imeSafeForm.configs.recommended,
+    rules: {
+      'ime-safe-form/require-ime-safe-submit': ['warn', {
+        jsxComponents: {
+          // Flag all PascalCase components except known non-IME-capable ones (default behavior)
+          allowComponents: ['ComboBox', 'NavigationMenu', 'UI.Input'],
+        },
+      }],
+    },
+  },
+];
+```
+
+```js
+// Opt out of flagging all PascalCase components, then explicitly flag specific ones
+rules: {
+  'ime-safe-form/require-ime-safe-submit': ['warn', {
+    jsxComponents: {
+      default: 'ignore',
+      disallowComponents: ['MyTextInput', 'Form.TextArea'],
+    },
+  }],
+},
+```
+
+```jsx
+// ✅ Exempted — no warning even without an isComposing guard
+<ComboBox onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
+<UI.Input onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
+```
+
+> [!NOTE]
+> `jsxComponents` only affects JSX patterns. `addEventListener` and `onkeydown =` are not scoped by element type and are always checked.
+
+### `customElements`
+
+Controls how custom elements (lowercase hyphenated names such as `<sl-input>`, `<my-text-field>`) are treated in JSX. Custom elements are not flagged by default because the rule cannot determine their rendered output.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `default` | `'flag' \| 'ignore'` | `'ignore'` | Default behavior for elements not in either list |
+| `allowElements` | `string[]` | `[]` | Elements to never flag (overrides `default: 'flag'`) |
+| `disallowElements` | `string[]` | `[]` | Elements to always flag (overrides `default: 'ignore'`) |
+
+```js
+// Opt into flagging all custom elements
+rules: {
+  'ime-safe-form/require-ime-safe-submit': ['warn', {
+    customElements: {
+      default: 'flag',
+    },
+  }],
+},
+```
+
+```js
+// Flag only specific known text-input web components
+rules: {
+  'ime-safe-form/require-ime-safe-submit': ['warn', {
+    customElements: {
+      disallowElements: ['sl-input', 'md-filled-text-field'],
+    },
+  }],
+},
+```
+
+```jsx
+// ✅ Not flagged by default — custom elements are ignored unless configured
+<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+
+// ❌ Flagged when disallowElements includes 'sl-input'
+<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+```
+
+> [!NOTE]
+> `customElements` only affects JSX patterns. `addEventListener` and `onkeydown =` are not scoped by element type and are always checked.
+
+### `allowComponents` (default: `[]`) — deprecated
+
+> [!WARNING]
+> `allowComponents` is deprecated. Use [`jsxComponents.allowComponents`](#jsxcomponents) instead. Both options are merged when used together.
 
 PascalCase JSX components (e.g. `<MyInput>`) are flagged by default because their rendered output is unknown. If a component is guaranteed not to receive IME input (for example, a custom button or a navigation widget), list it here to suppress the warning.
 
 Dot-notation components (e.g. `<UI.Input>`, `<Form.Field>`) are also supported — use the full dot-separated name.
 
 ```js
-// eslint.config.js
+// eslint.config.js (deprecated — prefer jsxComponents.allowComponents)
 export default [
   {
     ...imeSafeForm.configs.recommended,
@@ -276,12 +374,6 @@ export default [
     },
   },
 ];
-```
-
-```jsx
-// ✅ Exempted — no warning even without an isComposing guard
-<ComboBox onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
-<UI.Input onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
 ```
 
 > [!NOTE]

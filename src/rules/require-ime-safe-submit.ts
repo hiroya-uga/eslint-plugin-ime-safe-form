@@ -14,7 +14,7 @@ import {
   JSX_KEY_EVENTS,
   KEY_EVENTS,
 } from './helpers';
-import type { JSXAttribute } from './helpers';
+import type { CustomElementsOption, JSXAttribute, JsxComponentsOption } from './helpers';
 
 const messages = {
   requireImeSafeSubmit:
@@ -25,10 +25,24 @@ const messages = {
     "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;
 
+type JsxComponentsConfig = {
+  default?: 'flag' | 'ignore';
+  allowComponents?: string[];
+  disallowComponents?: string[];
+};
+
+type CustomElementsConfig = {
+  default?: 'flag' | 'ignore';
+  allowElements?: string[];
+  disallowElements?: string[];
+};
+
 type RuleOptions = {
   checkKeyCodeForSafari?: boolean;
   guardFunctions?: string[];
   allowComponents?: string[];
+  jsxComponents?: JsxComponentsConfig;
+  customElements?: CustomElementsConfig;
 };
 
 // ESLint validates schema before create() is called, so a shape check suffices.
@@ -59,6 +73,41 @@ const rule: Rule.RuleModule = {
             type: 'array',
             items: { type: 'string' },
             uniqueItems: true,
+            description: 'Deprecated. Use jsxComponents.allowComponents instead.',
+          },
+          jsxComponents: {
+            type: 'object',
+            properties: {
+              default: { type: 'string', enum: ['flag', 'ignore'] },
+              allowComponents: {
+                type: 'array',
+                items: { type: 'string' },
+                uniqueItems: true,
+              },
+              disallowComponents: {
+                type: 'array',
+                items: { type: 'string' },
+                uniqueItems: true,
+              },
+            },
+            additionalProperties: false,
+          },
+          customElements: {
+            type: 'object',
+            properties: {
+              default: { type: 'string', enum: ['flag', 'ignore'] },
+              allowElements: {
+                type: 'array',
+                items: { type: 'string' },
+                uniqueItems: true,
+              },
+              disallowElements: {
+                type: 'array',
+                items: { type: 'string' },
+                uniqueItems: true,
+              },
+            },
+            additionalProperties: false,
           },
         },
         additionalProperties: false,
@@ -72,7 +121,22 @@ const rule: Rule.RuleModule = {
     // Default true: only opt out when explicitly { checkKeyCodeForSafari: false }
     const checkKeyCodeForSafari = options.checkKeyCodeForSafari !== false;
     const guardFunctions = options.guardFunctions ?? [];
-    const allowComponents = options.allowComponents ?? [];
+
+    const jsxComponentsOption: JsxComponentsOption = {
+      default: options.jsxComponents?.default ?? 'flag',
+      // Merge deprecated top-level allowComponents with jsxComponents.allowComponents
+      allowComponents: [
+        ...(options.allowComponents ?? []),
+        ...(options.jsxComponents?.allowComponents ?? []),
+      ],
+      disallowComponents: options.jsxComponents?.disallowComponents ?? [],
+    };
+
+    const customElementsOption: CustomElementsOption = {
+      default: options.customElements?.default ?? 'ignore',
+      allowElements: options.customElements?.allowElements ?? [],
+      disallowElements: options.customElements?.disallowElements ?? [],
+    };
 
     /**
      * @param allowIsComposingGuard
@@ -187,7 +251,7 @@ const rule: Rule.RuleModule = {
         });
       },
 
-      // Pattern 3: JSX onKeyDown / onKeyUp / onKeyPress
+      // Pattern 3: JSX onKeyDown / onKeyUp / onKeyPress / onkeydown / onkeyup / onkeypress
       JSXAttribute(rawNode: unknown) {
         const node = rawNode as JSXAttribute;
 
@@ -197,7 +261,7 @@ const rule: Rule.RuleModule = {
           return;
         }
 
-        if (!isImeCapableJsxElement({ openingElement: node.parent, allowComponents })) {
+        if (!isImeCapableJsxElement({ openingElement: node.parent, jsxComponents: jsxComponentsOption, customElements: customElementsOption })) {
           return;
         }
 
