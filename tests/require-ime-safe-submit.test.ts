@@ -174,6 +174,21 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) console.log("composing"); if (e.key === 'Enter') submit(); });`,
       options: [{ checkKeyCodeForSafari: false }],
     },
+    // ── Known false negative (TASK-016): reversed isComposing guard not detected ──
+    // 'if (!e.isComposing) return' returns when NOT composing — the handler
+    // executes during IME composition and is unsafe. The rule matches any
+    // IfStatement test that contains .isComposing without checking direction.
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    // ── Known false negative (TASK-015): guard function without early return ─────
+    // guardIsComposing(e) is recognized as a guard even when the if-body does
+    // not return/throw, so the Enter check that follows still executes.
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) doSomethingElse(); if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ['guardIsComposing'], checkKeyCodeForSafari: false }],
+    },
     // checkKeyCodeForSafari: true (explicit) — keyup variant
     {
       code: `input.addEventListener('keyup', (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); });`,
@@ -446,6 +461,20 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `<MyButton onKeyDown={(e) => { if (e.key === 'Enter') doSomething(); }} />;`,
       options: [{ jsxComponents: { default: 'ignore', disallowComponents: ['MyInput'] } }],
+    },
+    // ── TASK-012: .key / .keyCode / switch on unrelated object — not flagged ───
+    // Only MemberExpressions rooted at the event parameter are detected.
+    {
+      code: `input.addEventListener('keydown', (e) => { if (shortcut.key === 'Enter') doSomething(); });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (obj.keyCode === 13) doSomething(); });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { switch(shortcut.key) { case 'Enter': doSomething(); break; } });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.target.key === 'Enter') doSomething(); });`,
     },
   ],
 
@@ -1113,6 +1142,30 @@ tester.run('require-ime-safe-submit', rule, {
       code: `<UI.Input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       options: [{ jsxComponents: { default: 'ignore', disallowComponents: ['UI.Input'] } }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // ── TASK-013: isComposing on unrelated object not accepted as guard ─────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (state.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── TASK-013: modifier key on unrelated object does not exempt Enter check ──
+    {
+      code: `input.addEventListener('keydown', (e) => { if (shortcut.ctrlKey && e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (shortcut.ctrlKey && e.key === 'Enter') submitForm(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.target.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e = window.event) => { if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
     },
   ],
 });

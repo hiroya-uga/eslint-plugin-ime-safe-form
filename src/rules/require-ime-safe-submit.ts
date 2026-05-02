@@ -3,7 +3,6 @@ import type { BaseNode, Node } from 'estree';
 import {
   containsEnterKeyCheckOutsideModifierGuard,
   containsKeyCheckOutsideModifierGuard,
-  containsEnterKeyCheck,
   containsKeyCheck,
   DEPRECATED_JSX_KEY_EVENTS,
   DEPRECATED_KEY_EVENTS,
@@ -161,13 +160,17 @@ const rule: Rule.RuleModule = {
         return;
       }
 
+      const firstParam = handlerNode.params[0];
+      const paramBinding = firstParam?.type === 'AssignmentPattern' ? firstParam.left : firstParam;
+      const eventParamName = paramBinding?.type === 'Identifier' ? paramBinding.name : undefined;
+
       const body = handlerNode.body;
 
-      if (allowIsComposingGuard && hasIsComposingCheck(body)) {
+      if (allowIsComposingGuard && hasIsComposingCheck({ node: body, eventParamName })) {
         const needsSafariKeyCodeGuard =
           checkKeyCodeForSafari &&
-          hasKeyCode229Check(body) === false &&
-          containsEnterKeyCheckOutsideModifierGuard(body);
+          hasKeyCode229Check({ node: body, eventParamName }) === false &&
+          containsEnterKeyCheckOutsideModifierGuard({ node: body, eventParamName });
 
         if (needsSafariKeyCodeGuard) {
           context.report({
@@ -184,11 +187,11 @@ const rule: Rule.RuleModule = {
         return;
       }
 
-      if (allowIsComposingGuard && containsKeyCheckOutsideModifierGuard(body) === false) {
+      if (allowIsComposingGuard && containsKeyCheckOutsideModifierGuard({ node: body, eventParamName }) === false) {
         return;
       }
 
-      if (containsKeyCheck(body)) {
+      if (containsKeyCheck({ node: body, eventParamName })) {
         context.report({
           node: reportNode,
           messageId: allowIsComposingGuard ? 'requireImeSafeSubmit' : 'keypressProhibited',
