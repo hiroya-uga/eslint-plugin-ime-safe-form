@@ -158,9 +158,11 @@ module.exports = {
 
 | Rule | Description | Recommended |
 |---|---|---|
-| [`require-ime-safe-submit`](https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-submit.md) | Require IME-safe form submission (isComposing guard or form submit event) | ✅ |
+| [`require-ime-safe-submit`](#require-ime-safe-submit) | Require IME-safe form submission (isComposing guard or form submit event) | ✅ |
 
-### Detected patterns
+### require-ime-safe-submit
+
+#### Detected patterns
 
 - `element.addEventListener('keydown' \| 'keyup', handler)` where handler checks `e.key === 'Enter'`, `e.code === 'Enter'`, `e.keyCode === 13`, or `e.which === 13` **without** an `e.isComposing` guard or a modifier key condition (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`)
 - `element.addEventListener('keypress', handler)` where handler checks for Enter — always flagged (`keypress` is deprecated)
