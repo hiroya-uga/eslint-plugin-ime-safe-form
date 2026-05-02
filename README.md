@@ -174,6 +174,9 @@ module.exports = {
 # Install dependencies
 npm install
 
+# Sync generated source from package.json when needed
+npm run sync-version
+
 # Type-check
 npm run typecheck
 
@@ -184,13 +187,18 @@ npm test
 npm run build
 ```
 
+`src/version.ts` is auto-generated from `package.json` and committed to the repository. This keeps fresh clones and editor tooling working without a separate bootstrap step. `build`, `test`, and `typecheck` run `npm run sync-version` automatically to keep it in sync.
+
 ### Project structure
 
 ```
 src/
   index.ts              # Plugin entry point
+  version.ts            # Auto-generated from package.json and committed
   rules/
     require-ime-safe-submit.ts
+scripts/
+  sync-version.mjs      # Syncs src/version.ts from package.json
 tests/
   require-ime-safe-submit.test.ts
 docs/

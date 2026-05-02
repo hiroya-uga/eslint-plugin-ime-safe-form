@@ -1,11 +1,11 @@
 import type { ESLint, Linter } from 'eslint';
 import requireImeSafeSubmit from './rules/require-ime-safe-submit';
-import { version } from '../package.json';
+import { VERSION } from './version';
 
 const plugin = {
   meta: {
     name: 'eslint-plugin-ime-safe-form',
-    version,
+    version: VERSION,
   },
   rules: {
     'require-ime-safe-submit': requireImeSafeSubmit,

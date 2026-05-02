@@ -52,9 +52,13 @@
     "url": "git+https://github.com/hiroya-uga/eslint-plugin-ime-safe-form.git"
   },
   "scripts": {
+    "sync-version": "node scripts/sync-version.mjs",
+    "prebuild": "npm run sync-version",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "npm run build",
+    "pretest": "npm run sync-version",
     "test": "node --require tsx/cjs --test tests/*.test.ts",
+    "pretypecheck": "npm run sync-version",
     "typecheck": "tsc --noEmit"
   },
   "types": "dist/index.d.ts"
