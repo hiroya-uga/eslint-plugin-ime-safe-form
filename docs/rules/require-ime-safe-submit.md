@@ -218,8 +218,6 @@ Use the [`allowComponents`](#allowcomponents-default-) option to exempt specific
 
 - **`addEventListener` and `onkeydown =` do not scope by element type.** The rule cannot determine the element the handler is attached to at static analysis time. Even if the handler is on a `<div>`, it will be flagged. Only JSX patterns benefit from element-type scoping.
 
-- **`<Namespace.Component>` syntax is always treated as IME-capable.** Member-expression component names (e.g. `<UI.Input>`) are always flagged. The `allowComponents` option only accepts simple identifiers (e.g. `'Input'`), so there is no way to exempt `<UI.Input>` without using `// eslint-disable`.
-
 - **`guardFunctions` trusts the listed functions blindly, including for the Safari `keyCode === 229` requirement.** The rule cannot inspect the body of the guard function. Any function in `guardFunctions` suppresses `requireKeyCode229` as well as `requireImeSafeSubmit`. Make sure the guard function handles both `e.isComposing` and `e.keyCode === 229` if Safari support is needed.
 
 ## Options
@@ -264,6 +262,8 @@ Negated calls (`if (!guardIsComposing(e))`) and calls inside compound conditions
 
 PascalCase JSX components (e.g. `<MyInput>`) are flagged by default because their rendered output is unknown. If a component is guaranteed not to receive IME input (for example, a custom button or a navigation widget), list it here to suppress the warning.
 
+Dot-notation components (e.g. `<UI.Input>`, `<Form.Field>`) are also supported — use the full dot-separated name.
+
 ```js
 // eslint.config.js
 export default [
@@ -271,7 +271,7 @@ export default [
     ...imeSafeForm.configs.recommended,
     rules: {
       'ime-safe-form/require-ime-safe-submit': ['warn', {
-        allowComponents: ['ComboBox', 'NavigationMenu'],
+        allowComponents: ['ComboBox', 'NavigationMenu', 'UI.Input'],
       }],
     },
   },
@@ -281,6 +281,7 @@ export default [
 ```jsx
 // ✅ Exempted — no warning even without an isComposing guard
 <ComboBox onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
+<UI.Input onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
 ```
 
 > [!NOTE]

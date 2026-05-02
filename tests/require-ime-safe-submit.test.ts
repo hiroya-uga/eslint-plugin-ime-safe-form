@@ -288,6 +288,20 @@ tester.run('require-ime-safe-submit', rule, {
       code: `<SearchField onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       options: [{ allowComponents: ['MyInput', 'SearchField'] }],
     },
+    // ── allowComponents with dot-notation (JSXMemberExpression) ─────────────
+    {
+      code: `<UI.Input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['UI.Input'] }],
+    },
+    {
+      code: `<Form.Field onKeyUp={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['Form.Field'] }],
+    },
+    // deeply nested dot-notation
+    {
+      code: `<A.B.C onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['A.B.C'] }],
+    },
     // ── JSX non-input HTML elements — not IME-capable, not flagged ────────────
     {
       code: `<div onKeyDown={(e) => { if (e.key === 'Enter') someAction(); }} />;`,
@@ -867,15 +881,26 @@ tester.run('require-ime-safe-submit', rule, {
       options: [{ allowComponents: ['MyInput'] }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
-    // ── JSXMemberExpression (<Namespace.Component>) — always treated as IME-capable ─
-    // allowComponents has no effect; member-expression names cannot be exempted
+    // ── JSXMemberExpression (<Namespace.Component>) — flagged unless listed in allowComponents ─
     {
       code: `<Foo.Bar onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
+    // partial name (only 'Bar') does not match 'Foo.Bar'
     {
       code: `<Foo.Bar onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       options: [{ allowComponents: ['Bar'] }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // wrong namespace does not match
+    {
+      code: `<Foo.Bar onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      options: [{ allowComponents: ['Baz.Bar'] }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    // non-member non-identifier JSX names should not crash; fall back to IME-capable
+    {
+      code: `<svg:path onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
     // ── JSX FunctionExpression (function keyword, not arrow) ─────────────────

@@ -17,6 +17,8 @@ export interface JSXSpreadAttribute extends BaseNode {
 
 export interface JSXMemberExpression extends BaseNode {
   type: 'JSXMemberExpression';
+  object: JSXIdentifier | JSXMemberExpression;
+  property: JSXIdentifier;
 }
 
 export interface JSXOpeningElement extends BaseNode {
@@ -33,6 +35,17 @@ export interface JSXAttribute extends BaseNode {
 }
 
 export const IME_CAPABLE_ELEMENTS = new Set(['input', 'textarea']);
+
+const getJsxMemberExpressionName = (node: JSXMemberExpression): string => {
+  const parts: string[] = [node.property.name];
+  let current: JSXIdentifier | JSXMemberExpression = node.object;
+  while (current.type === 'JSXMemberExpression') {
+    parts.unshift(current.property.name);
+    current = current.object;
+  }
+  parts.unshift(current.name);
+  return parts.join('.');
+};
 
 const CONTENTEDITABLE_PROPS = new Set(['contenteditable', 'contentEditable']);
 const PASCAL_CASE_PATTERN = /^[A-Z]/;
@@ -61,6 +74,11 @@ export const isImeCapableJsxElement = ({
   allowComponents: string[];
 }) => {
   const { name: nameNode, attributes } = openingElement;
+
+  if (nameNode.type === 'JSXMemberExpression') {
+    const fullName = getJsxMemberExpressionName(nameNode);
+    return !allowComponents.includes(fullName);
+  }
 
   if (nameNode.type !== 'JSXIdentifier') {
     return true;
