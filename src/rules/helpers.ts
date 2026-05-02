@@ -68,13 +68,13 @@ const isExplicitFalseContentEditableValue = (value: JSXAttribute['value']) => {
 };
 
 export type JsxComponentsOption = {
-  default: 'flag' | 'ignore';
+  default: 'check' | 'ignore';
   allowComponents: string[];
   disallowComponents: string[];
 };
 
 export type CustomElementsOption = {
-  default: 'flag' | 'ignore';
+  default: 'check' | 'ignore';
   allowElements: string[];
   disallowElements: string[];
 };
@@ -86,7 +86,7 @@ const resolveJsxComponent = ({ name, option }: { name: string; option: JsxCompon
   if (option.allowComponents.includes(name)) {
     return false;
   }
-  return option.default === 'flag';
+  return option.default === 'check';
 };
 
 const resolveCustomElement = ({ name, option }: { name: string; option: CustomElementsOption }): boolean => {
@@ -96,7 +96,7 @@ const resolveCustomElement = ({ name, option }: { name: string; option: CustomEl
   if (option.allowElements.includes(name)) {
     return false;
   }
-  return option.default === 'flag';
+  return option.default === 'check';
 };
 
 export const isImeCapableJsxElement = ({

@@ -26,13 +26,13 @@ const messages = {
 } as const;
 
 type JsxComponentsConfig = {
-  default?: 'flag' | 'ignore';
+  default?: 'check' | 'ignore';
   allowComponents?: string[];
   disallowComponents?: string[];
 };
 
 type CustomElementsConfig = {
-  default?: 'flag' | 'ignore';
+  default?: 'check' | 'ignore';
   allowElements?: string[];
   disallowElements?: string[];
 };
@@ -78,7 +78,7 @@ const rule: Rule.RuleModule = {
           jsxComponents: {
             type: 'object',
             properties: {
-              default: { type: 'string', enum: ['flag', 'ignore'] },
+              default: { type: 'string', enum: ['check', 'ignore'] },
               allowComponents: {
                 type: 'array',
                 items: { type: 'string' },
@@ -95,7 +95,7 @@ const rule: Rule.RuleModule = {
           customElements: {
             type: 'object',
             properties: {
-              default: { type: 'string', enum: ['flag', 'ignore'] },
+              default: { type: 'string', enum: ['check', 'ignore'] },
               allowElements: {
                 type: 'array',
                 items: { type: 'string' },
@@ -123,7 +123,7 @@ const rule: Rule.RuleModule = {
     const guardFunctions = options.guardFunctions ?? [];
 
     const jsxComponentsOption: JsxComponentsOption = {
-      default: options.jsxComponents?.default ?? 'flag',
+      default: options.jsxComponents?.default ?? 'check',
       // Merge deprecated top-level allowComponents with jsxComponents.allowComponents
       allowComponents: [
         ...(options.allowComponents ?? []),

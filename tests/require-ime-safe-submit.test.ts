@@ -416,15 +416,15 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `<my-text-field onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
     },
-    // customElements.allowElements — explicitly ignored even when default is 'flag'
+    // customElements.allowElements — explicitly ignored even when default is 'check'
     {
       code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
-      options: [{ customElements: { default: 'flag', allowElements: ['sl-input'] } }],
+      options: [{ customElements: { default: 'check', allowElements: ['sl-input'] } }],
     },
-    // customElements.default: 'flag', but allowElements excludes this element
+    // customElements.default: 'check', but allowElements excludes this element
     {
       code: `<my-button onKeyDown={(e) => { if (e.key === 'Enter') doSomething(); }} />;`,
-      options: [{ customElements: { default: 'flag', allowElements: ['my-button'] } }],
+      options: [{ customElements: { default: 'check', allowElements: ['my-button'] } }],
     },
     // ── jsxComponents option ──────────────────────────────────────────────────────
     // default: 'ignore' — PascalCase components not flagged
@@ -1060,21 +1060,21 @@ tester.run('require-ime-safe-submit', rule, {
       errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
     },
     // ── customElements option ─────────────────────────────────────────────────
-    // default: 'flag' — all custom elements flagged
+    // default: 'check' — all custom elements checked
     {
       code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
-      options: [{ customElements: { default: 'flag' } }],
+      options: [{ customElements: { default: 'check' } }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
     {
       code: `<my-text-field onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
-      options: [{ customElements: { default: 'flag' } }],
+      options: [{ customElements: { default: 'check' } }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
-    // default: 'flag' with lowercase event attribute
+    // default: 'check' with lowercase event attribute
     {
       code: `<sl-input onkeydown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
-      options: [{ customElements: { default: 'flag' } }],
+      options: [{ customElements: { default: 'check' } }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
     },
     // disallowElements — explicitly flag a specific element (even when default is 'ignore')
@@ -1083,10 +1083,10 @@ tester.run('require-ime-safe-submit', rule, {
       options: [{ customElements: { disallowElements: ['sl-input'] } }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
-    // default: 'flag', allowElements excludes another element — this one is still flagged
+    // default: 'check', allowElements excludes another element — this one is still flagged
     {
       code: `<sl-input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
-      options: [{ customElements: { default: 'flag', allowElements: ['my-button'] } }],
+      options: [{ customElements: { default: 'check', allowElements: ['my-button'] } }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
     },
     // ── jsxComponents option ──────────────────────────────────────────────────

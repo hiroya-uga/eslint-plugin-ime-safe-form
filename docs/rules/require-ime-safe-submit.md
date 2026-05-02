@@ -268,8 +268,8 @@ Controls how PascalCase components and dot-notation components (e.g. `<MyInput>`
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `default` | `'flag' \| 'ignore'` | `'flag'` | Default behavior for components not in either list |
-| `allowComponents` | `string[]` | `[]` | Components to never flag (overrides `default: 'flag'`) |
+| `default` | `'check' \| 'ignore'` | `'check'` | Default behavior for components not in either list |
+| `allowComponents` | `string[]` | `[]` | Components to never flag (overrides `default: 'check'`) |
 | `disallowComponents` | `string[]` | `[]` | Components to always flag (overrides `default: 'ignore'`) |
 
 ```js
@@ -280,7 +280,7 @@ export default [
     rules: {
       'ime-safe-form/require-ime-safe-submit': ['warn', {
         jsxComponents: {
-          // Flag all PascalCase components except known non-IME-capable ones (default behavior)
+          // Check all PascalCase components except known non-IME-capable ones (default behavior)
           allowComponents: ['ComboBox', 'NavigationMenu', 'UI.Input'],
         },
       }],
@@ -290,7 +290,7 @@ export default [
 ```
 
 ```js
-// Opt out of flagging all PascalCase components, then explicitly flag specific ones
+// Opt out of checking all PascalCase components, then explicitly check specific ones
 rules: {
   'ime-safe-form/require-ime-safe-submit': ['warn', {
     jsxComponents: {
@@ -316,16 +316,16 @@ Controls how custom elements (lowercase hyphenated names such as `<sl-input>`, `
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `default` | `'flag' \| 'ignore'` | `'ignore'` | Default behavior for elements not in either list |
-| `allowElements` | `string[]` | `[]` | Elements to never flag (overrides `default: 'flag'`) |
+| `default` | `'check' \| 'ignore'` | `'ignore'` | Default behavior for elements not in either list |
+| `allowElements` | `string[]` | `[]` | Elements to never flag (overrides `default: 'check'`) |
 | `disallowElements` | `string[]` | `[]` | Elements to always flag (overrides `default: 'ignore'`) |
 
 ```js
-// Opt into flagging all custom elements
+// Opt into checking all custom elements
 rules: {
   'ime-safe-form/require-ime-safe-submit': ['warn', {
     customElements: {
-      default: 'flag',
+      default: 'check',
     },
   }],
 },
