@@ -71,6 +71,9 @@ tester.run('require-ime-safe-key-events', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key !== 'Escape') return; close(); });`,
     },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key != 'Tab') return; focusNext(); });`,
+    },
     // ── isComposing guard nested inside the key check body ────────────────────
     {
       code: `input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (e.isComposing) return; close(); } });`,
@@ -356,6 +359,27 @@ tester.run('require-ime-safe-key-events', rule, {
     },
     {
       code: `input.addEventListener('keydown', (e) => { switch(e.key) { default: close(); } });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── !== non-Enter early-return without isComposing guard ─────────────────
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key !== 'Tab') return; focusNext(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key !== 'Escape') return; close(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key != 'Tab') return; focusNext(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.shiftKey) closeDialog(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.ctrlKey) closeDialog(); });`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
     },
     // ── modifier on non-Enter shortcut must not exempt an unguarded non-Enter check ──
