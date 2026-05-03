@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-ime-safe-form",
-  "description": "ESLint plugin to enforce IME-safe form submission — requires e.isComposing guard or form submit event instead of Enter key detection in keydown/keyup handlers",
+  "description": "ESLint plugin to enforce IME-safe key-event handling — requires e.isComposing guards in keydown/keyup handlers and prohibits deprecated keypress events",
   "version": "1.3.3",
   "author": "Hiroya Uga",
   "bugs": {
@@ -38,6 +38,7 @@
     "enter",
     "keydown",
     "keyup",
+    "keypress",
     "react",
     "accessibility"
   ],

@@ -3,10 +3,16 @@
 ## Project Overview
 
 **Package name:** `eslint-plugin-ime-safe-form`
-**Rule:** `ime-safe-form/require-ime-safe-key-events` (canonical name since 1.4.0)
-**Deprecated alias:** `ime-safe-form/require-ime-safe-submit` (1.x — kept for backward compatibility)
 
-An ESLint plugin that prevents accidental form submission during IME (Input Method Editor) composition. Users typing with an IME use it to input characters. Pressing Enter to confirm an IME candidate fires `keydown` _before_ `compositionend`, which causes form submission mid-input if the handler blindly checks `e.key === 'Enter'`.
+Three rules, all included in `recommended`:
+
+| Rule | Scope |
+|---|---|
+| `ime-safe-form/require-ime-safe-submit` | Enter key checks in `keydown`/`keyup` — suggests `e.isComposing` guard or form `submit` event |
+| `ime-safe-form/require-ime-safe-key-events` | Non-Enter key checks in `keydown`/`keyup` — requires `e.isComposing` guard |
+| `ime-safe-form/no-keypress-event` | Any `keypress` event usage — prohibited unconditionally (including named function references) |
+
+An ESLint plugin that enforces IME-safe key-event handling. Users typing with an IME use it to input characters. Key events (`keydown`, `keyup`) fire _before_ `compositionend`, so handlers that check key values can trigger mid-composition if they lack an `e.isComposing` guard.
 
 ## The Problem Being Solved
 
@@ -23,34 +29,39 @@ input.addEventListener('keydown', (e) => {
 });
 ```
 
-The two correct alternatives enforced by the rule:
+Correct alternatives:
 
-1. **`e.isComposing` guard** — skip the handler while IME is active
-2. **Form `submit` event** — fires only _after_ `compositionend`
+1. **`e.isComposing` guard** — skip the handler while IME is active (all key checks)
+2. **Form `submit` event** — fires only _after_ `compositionend` (Enter/submission only; accepted by `require-ime-safe-submit`)
+3. **Modifier key condition** — `Ctrl`/`Meta`/`Shift`/`Alt` cannot be held during IME composition
 
 `keypress` is prohibited unconditionally: it is deprecated and unreliable for IME regardless of any guard.
 
 ## Rule Logic
 
-The rule implementation is in [src/rules/require-ime-safe-key-events.ts](src/rules/require-ime-safe-key-events.ts). The deprecated alias `require-ime-safe-submit` is in [src/rules/require-ime-safe-submit.ts](src/rules/require-ime-safe-submit.ts) and re-exports the same implementation with `deprecated: DeprecatedInfo`.
+Rules share a factory in [src/rules/key-event-rule.ts](src/rules/key-event-rule.ts) via `makeRuleCreate`. Detection helpers are in [src/rules/helpers.ts](src/rules/helpers.ts).
+
+- [src/rules/require-ime-safe-submit.ts](src/rules/require-ime-safe-submit.ts) — Enter-key rule; uses `containsEnterKey*` helpers
+- [src/rules/require-ime-safe-key-events.ts](src/rules/require-ime-safe-key-events.ts) — non-Enter rule; uses `containsNonEnterKey*` helpers
+- [src/rules/no-keypress-event.ts](src/rules/no-keypress-event.ts) — standalone; flags any `keypress` event usage unconditionally (no handler inspection)
 
 ### What triggers a report
 
-| Event | Condition for flagging |
-|---|---|
-| `keydown` / `keyup` | Enter key check found AND no `e.isComposing` guard in an `if` test |
-| `keypress` | Enter key check found (always — `isComposing` does not exempt) |
+| Rule | Event | Condition for flagging |
+|---|---|---|
+| `require-ime-safe-submit` | `keydown` / `keyup` | Enter key check found AND no `e.isComposing` guard |
+| `require-ime-safe-submit` | `keydown` / `keyup` | Enter key check found AND no modifier key condition |
+| `require-ime-safe-key-events` | `keydown` / `keyup` | Non-Enter key check found AND no `e.isComposing` guard |
+| `no-keypress-event` | `keypress` | Event name itself (unconditional — handler body is not inspected) |
 
-### Two message IDs
+### Message IDs
 
+`require-ime-safe-submit` and `require-ime-safe-key-events` share:
 - `requireImeSafeSubmit` — keydown/keyup without isComposing guard
-- `keypressProhibited` — any keypress handler with an Enter check
+- `requireKeyCode229` — isComposing guard present but missing Safari `keyCode === 229` check
 
-### `checkHandler` function
-
-Accepts `allowIsComposingGuard: boolean`:
-- `true` for keydown/keyup: `hasIsComposingCheck()` can exempt the handler
-- `false` for keypress: always flag if Enter check is found
+`no-keypress-event` uses its own:
+- `keypressDeprecated` — any keypress event usage
 
 ### Enter key detection operators
 
@@ -82,11 +93,19 @@ Two helpers detect `switch` statements, and they differ intentionally:
 
 ### `isComposing` guard detection
 
-`hasIsComposingCheck()` looks for any `IfStatement` whose `test` contains a `MemberExpression` with property `isComposing`. This covers:
-- `if (e.isComposing) return;`
-- `if (!e.isComposing && e.key === 'Enter') …`
-- `if (e.key === 'Enter' && !e.isComposing) …`
-- Outer `if (!e.isComposing) { … }` wrapping an Enter check
+The main exported helpers for guard-aware detection are:
+
+- `containsEnterKeyCheckOutsideIsComposingGuard` — walks the handler body and returns `true` if an Enter key check exists _outside_ any valid `isComposing` guard. Used by `require-ime-safe-submit`.
+- `containsNonEnterKeyCheckOutsideIsComposingGuard` — same logic for non-Enter keys. Used by `require-ime-safe-key-events`.
+- `containsKeyCheckOutsideIsComposingGuard` — covers all key checks (used internally for keypress).
+
+`hasIsComposingCheck()` is still exported as a lower-level helper and recognizes the following guard forms:
+- `if (e.isComposing) return;` — pure guard with early exit
+- `if (!e.isComposing && e.key === 'Enter') …` — inline pattern
+- `if (e.key === 'Enter' && !e.isComposing) …` — inline (reversed order)
+- `if (!e.isComposing) { … }` — wrapping pattern containing the key check
+
+A guard must contain an early exit (`return` or `throw`) in its consequent to be recognized (except for inline and wrapping patterns where the key check itself is scoped inside the guard).
 
 ## Plugin Entry Point
 
@@ -134,15 +153,24 @@ Version conventions:
 
 ```
 src/
-  index.ts                          # Plugin entry point and configs
+  index.ts                           # Plugin entry point and configs
+  version.ts                         # Generated from package.json before build
   rules/
-    require-ime-safe-submit.ts      # The only rule
+    helpers.ts                       # Shared AST helpers and detection logic
+    key-event-rule.ts                # Shared rule factory (makeRuleCreate)
+    require-ime-safe-submit.ts       # Enter-key rule
+    require-ime-safe-key-events.ts   # Non-Enter key rule
+    no-keypress-event.ts             # keypress prohibition rule
 tests/
-  require-ime-safe-submit.test.ts   # RuleTester tests
+  require-ime-safe-submit.test.ts    # RuleTester tests
+  require-ime-safe-key-events.test.ts
+  no-keypress-event.test.ts
 docs/
   rules/
-    require-ime-safe-submit.md      # User-facing rule documentation
-dist/                               # Built output (git-ignored, generated by build)
+    require-ime-safe-submit.md       # User-facing rule documentation
+    require-ime-safe-key-events.md
+    no-keypress-event.md
+dist/                                # Built output (git-ignored, generated by build)
 ```
 
 ## Coding Rules
