@@ -29,14 +29,14 @@ input.onkeypress = (e) => { if (e.key === 'Escape') closeDialog(); };
 ```js
 /* eslint ime-safe-form/no-keypress-event: "warn" */
 
-input.addEventListener('keydown', (e) => {
-  if (e.isComposing || e.keyCode === 229) return;
-  if (e.key === 'Enter') submit();
-});
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+input.addEventListener('keydown', handleKeydown);
+input.onkeydown = (e) => { if (e.key === 'Escape') closeDialog(); };
 ```
 
 ```jsx
-<input onKeyDown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); }} />
+<input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+<input onkeydown={(e) => { if (e.key === 'Enter') submit(); }} />
 ```
 
 ## Options
