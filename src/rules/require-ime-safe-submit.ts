@@ -2,12 +2,11 @@ import type { Rule } from 'eslint';
 import type { BaseNode, Node } from 'estree';
 import {
   containsEnterKeyCheckOutsideModifierGuard,
+  containsKeyCheckOutsideIsComposingGuard,
   containsKeyCheckOutsideModifierGuard,
   containsKeyCheck,
   DEPRECATED_JSX_KEY_EVENTS,
   DEPRECATED_KEY_EVENTS,
-  hasGuardFunctionCall,
-  hasIsComposingCheck,
   hasKeyCode229Check,
   isImeCapableJsxElement,
   JSX_KEY_EVENTS,
@@ -137,6 +136,44 @@ const rule: Rule.RuleModule = {
       disallowElements: options.customElements?.disallowElements ?? [],
     };
 
+    const checkHandlerBody = ({
+      body,
+      reportNode,
+      eventName,
+      eventParamName,
+      allowIsComposingGuard,
+    }: {
+      body: Node;
+      reportNode: BaseNode;
+      eventName: string;
+      eventParamName: string | undefined;
+      allowIsComposingGuard: boolean;
+    }) => {
+      if (allowIsComposingGuard && containsKeyCheckOutsideIsComposingGuard({ node: body, eventParamName }) === false) {
+        const needsSafariKeyCodeGuard =
+          checkKeyCodeForSafari &&
+          hasKeyCode229Check({ node: body, eventParamName }) === false &&
+          containsEnterKeyCheckOutsideModifierGuard({ node: body, eventParamName });
+        if (needsSafariKeyCodeGuard) {
+          context.report({ node: reportNode, messageId: 'requireKeyCode229' });
+        }
+        return;
+      }
+      if (allowIsComposingGuard && guardFunctions.length > 0 && containsKeyCheckOutsideIsComposingGuard({ node: body, eventParamName, guardFunctions }) === false) {
+        return;
+      }
+      if (allowIsComposingGuard && containsKeyCheckOutsideModifierGuard({ node: body, eventParamName }) === false) {
+        return;
+      }
+      if (containsKeyCheck({ node: body, eventParamName })) {
+        context.report({
+          node: reportNode,
+          messageId: allowIsComposingGuard ? 'requireImeSafeSubmit' : 'keypressProhibited',
+          data: { eventName },
+        });
+      }
+    };
+
     /**
      * @param allowIsComposingGuard
      *   true  — keydown/keyup: an e.isComposing guard exempts the handler.
@@ -159,45 +196,10 @@ const rule: Rule.RuleModule = {
       if (handlerNode.type !== 'ArrowFunctionExpression' && handlerNode.type !== 'FunctionExpression') {
         return;
       }
-
       const firstParam = handlerNode.params[0];
       const paramBinding = firstParam?.type === 'AssignmentPattern' ? firstParam.left : firstParam;
       const eventParamName = paramBinding?.type === 'Identifier' ? paramBinding.name : undefined;
-
-      const body = handlerNode.body;
-
-      if (allowIsComposingGuard && hasIsComposingCheck({ node: body, eventParamName })) {
-        const needsSafariKeyCodeGuard =
-          checkKeyCodeForSafari &&
-          hasKeyCode229Check({ node: body, eventParamName }) === false &&
-          containsEnterKeyCheckOutsideModifierGuard({ node: body, eventParamName });
-
-        if (needsSafariKeyCodeGuard) {
-          context.report({
-            node: reportNode,
-            messageId: 'requireKeyCode229',
-          });
-        }
-        return;
-      }
-
-      const hasUserDefinedGuard = guardFunctions.length > 0 && hasGuardFunctionCall({ node: body, guardFunctions });
-
-      if (allowIsComposingGuard && hasUserDefinedGuard) {
-        return;
-      }
-
-      if (allowIsComposingGuard && containsKeyCheckOutsideModifierGuard({ node: body, eventParamName }) === false) {
-        return;
-      }
-
-      if (containsKeyCheck({ node: body, eventParamName })) {
-        context.report({
-          node: reportNode,
-          messageId: allowIsComposingGuard ? 'requireImeSafeSubmit' : 'keypressProhibited',
-          data: { eventName },
-        });
-      }
+      checkHandlerBody({ body: handlerNode.body, reportNode, eventName, eventParamName, allowIsComposingGuard });
     };
 
     return {

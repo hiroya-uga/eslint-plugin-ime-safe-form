@@ -166,29 +166,6 @@ tester.run('require-ime-safe-submit', rule, {
       code: `window.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
       options: [{ checkKeyCodeForSafari: false }],
     },
-    // ── Known limitation: isComposing in if-test without return ───────────────
-    // The rule accepts any IfStatement whose test mentions isComposing.
-    // If the if-body does not return/throw, the guard is ineffective at runtime,
-    // but detecting that requires data-flow analysis beyond this rule's scope.
-    {
-      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) console.log("composing"); if (e.key === 'Enter') submit(); });`,
-      options: [{ checkKeyCodeForSafari: false }],
-    },
-    // ── Known false negative (TASK-016): reversed isComposing guard not detected ──
-    // 'if (!e.isComposing) return' returns when NOT composing — the handler
-    // executes during IME composition and is unsafe. The rule matches any
-    // IfStatement test that contains .isComposing without checking direction.
-    {
-      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing) return; if (e.key === 'Enter') submit(); });`,
-      options: [{ checkKeyCodeForSafari: false }],
-    },
-    // ── Known false negative (TASK-015): guard function without early return ─────
-    // guardIsComposing(e) is recognized as a guard even when the if-body does
-    // not return/throw, so the Enter check that follows still executes.
-    {
-      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) doSomethingElse(); if (e.key === 'Enter') submit(); });`,
-      options: [{ guardFunctions: ['guardIsComposing'], checkKeyCodeForSafari: false }],
-    },
     // checkKeyCodeForSafari: true (explicit) — keyup variant
     {
       code: `input.addEventListener('keyup', (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); });`,
@@ -377,20 +354,10 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keydown', (e) => { if (isComposingGuard(e)) return; if (e.key === 'Enter') submit(); });`,
       options: [{ guardFunctions: ["guardIsComposing", "isComposingGuard"] }],
     },
-    // negated guard: if (!guardIsComposing(e)) — still recognised
-    {
-      code: `input.addEventListener('keydown', (e) => { if (!guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
-      options: [{ guardFunctions: ["guardIsComposing"] }],
-    },
     // combined with checkKeyCodeForSafari: false — no requireKeyCode229 report
     {
       code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
       options: [{ guardFunctions: ["guardIsComposing"], checkKeyCodeForSafari: false }],
-    },
-    // compound condition with guard function: if (guardIsComposing(e) && …)
-    {
-      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e) && !e.shiftKey) return; if (e.key === 'Enter') submit(); });`,
-      options: [{ guardFunctions: ["guardIsComposing"] }],
     },
     // ── camelCase DOM assignment (onKeyDown, onKeyUp) — not a valid DOM API ─────
     // DOM properties are case-sensitive: the valid form is onkeydown (lowercase).
@@ -941,6 +908,36 @@ tester.run('require-ime-safe-submit', rule, {
       options: [{ guardFunctions: ["guardIsComposing"] }],
       errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
     },
+    // guard without early exit — if-body must return/throw to stop the handler
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e)) doSomethingElse(); if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"], checkKeyCodeForSafari: false }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    // negated guard: !guardFn(e) inverts the guard direction — key handler runs during composition
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!guardIsComposing(e)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    // compound && condition: guard may not fire for all composing cases (e.shiftKey can prevent early exit)
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e) && !e.shiftKey) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    // guard called with non-event arg — rule cannot verify the arg is the event param
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(state)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    // isComposing in if-test without early exit — guard is ineffective at runtime
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) console.log("composing"); if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
     // ── JSX IME-capable elements beyond <input> ───────────────────────────────
     {
       code: `<textarea onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
@@ -1148,6 +1145,70 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keydown', (e) => { if (state.isComposing) return; if (e.key === 'Enter') submit(); });`,
       options: [{ checkKeyCodeForSafari: false }],
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── isComposing guard scope — key checks outside the guarded IfStatement ────
+    // wrapping pattern + unguarded key check outside → still flagged
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing) { if (e.key === 'Enter') submit(); } if (e.key === 'Escape') close(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // inline pattern + unguarded key check outside → still flagged
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.key === 'Enter') submit(); if (e.key === 'Escape') close(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── isComposing direction — positive or non-blocking guard ───────────────────
+    // inline: e.isComposing && e.key runs the key check WHEN composing → unsafe
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing && e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // wrapping: if (e.isComposing) { key check } runs the key check WHEN composing → unsafe
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) { if (e.key === 'Enter') submit(); } });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // inline OR: !e.isComposing || e.key can still be true when composing → unsafe
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing || e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── reversed pure guard: exits when NOT composing, so key check runs when composing ─
+    // simple reversed guard
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // compound reversed guard: AND with negated isComposing also does not guarantee exit when composing
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && ready) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── nested pattern: guard must be FIRST statement in the key-check if-body ──
+    // action before isComposing guard → action runs while composing
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { submit(); if (e.isComposing) return; } });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // action before guardFunctions guard → action runs while composing
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { submit(); if (guardIsComposing(e)) return; } });`,
+      options: [{ checkKeyCodeForSafari: false, guardFunctions: ['guardIsComposing'] }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── guardFunctions — multiple args not recognized as the event param guard ──
+    {
+      code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e, state)) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ guardFunctions: ["guardIsComposing"] }],
+      errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
     },
     // ── TASK-013: modifier key on unrelated object does not exempt Enter check ──
     {

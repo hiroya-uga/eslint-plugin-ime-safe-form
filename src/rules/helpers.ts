@@ -367,15 +367,281 @@ export const hasKeyCode229Check = ({ node, eventParamName }: { node: Node | null
   });
 };
 
+// Returns true when the IfStatement's consequent directly contains a return or
+// throw — i.e., the branch unconditionally exits. Block bodies are accepted when
+// any top-level statement is a return/throw.
+const consequentHasEarlyExit = (ifNode: Node): boolean => {
+  if (ifNode.type !== 'IfStatement') {
+    return false;
+  }
+  const { consequent } = ifNode;
+  if (consequent.type === 'ReturnStatement' || consequent.type === 'ThrowStatement') {
+    return true;
+  }
+  if (consequent.type === 'BlockStatement') {
+    return consequent.body.some((stmt) => stmt.type === 'ReturnStatement' || stmt.type === 'ThrowStatement');
+  }
+  return false;
+};
+
 export const hasIsComposingCheck = ({ node, eventParamName }: { node: Node | null | undefined; eventParamName: string | undefined }) =>
   walkAst({
-    predicate: (candidateNode) =>
-      candidateNode.type === 'IfStatement' &&
-      walkAst({
+    predicate: (candidateNode) => {
+      if (candidateNode.type !== 'IfStatement') {
+        return false;
+      }
+      const hasIsComposing = walkAst({
         predicate: (child) => isMemberWithProp({ node: child, propName: 'isComposing', eventParamName }),
         node: candidateNode.test,
-      }),
+      });
+      if (!hasIsComposing) {
+        return false;
+      }
+      // Inline pattern: test contains both isComposing and a key check.
+      // e.g., `if (!e.isComposing && e.key === 'Enter') submit()` — safe as-is.
+      if (containsKeyCheck({ node: candidateNode.test, eventParamName })) {
+        return true;
+      }
+      // Wrapping pattern: key checks are inside the consequent.
+      // e.g., `if (!e.isComposing) { if (e.key === 'Enter') submit(); }` — safe.
+      if (containsKeyCheck({ node: candidateNode.consequent, eventParamName })) {
+        return true;
+      }
+      // Pure guard pattern: must exit early so the key handler cannot run while composing.
+      return consequentHasEarlyExit(candidateNode);
+    },
     node,
+  });
+
+// Returns true when the expression guarantees the if-body is NOT reached while
+// IME is active — i.e. `!e.isComposing` (or a compound containing it) makes the
+// expression evaluate to false when composing.
+//
+// Only `&&` chains are traversed: `a && !e.isComposing` is safe because the `&&`
+// short-circuits to false when composing. `||` is NOT safe: in
+// `!e.isComposing || e.key === 'Enter'`, the `||` can be true while composing if
+// the right side is truthy, so execution is NOT blocked.
+const isComposingInBlockingPosition = ({ node, eventParamName }: { node: Node; eventParamName: string | undefined }): boolean => {
+  if (node.type === 'UnaryExpression' && node.operator === '!') {
+    return walkAst({
+      predicate: (child) => isMemberWithProp({ node: child, propName: 'isComposing', eventParamName }),
+      node: node.argument as Node,
+    });
+  }
+  if (node.type === 'LogicalExpression' && node.operator === '&&') {
+    return (
+      isComposingInBlockingPosition({ node: node.left as Node, eventParamName }) ||
+      isComposingInBlockingPosition({ node: node.right as Node, eventParamName })
+    );
+  }
+  return false;
+};
+
+// Returns true when e.isComposing appears in a position that guarantees the
+// expression evaluates to true while composing — so the surrounding if-body
+// (early exit) is unconditionally reached when composing.
+//
+// Only `||` chains are traversed: `e.isComposing || e.keyCode === 229` is
+// guaranteed true when composing because isComposing alone makes the OR true.
+// `&&` is NOT guaranteed: `e.isComposing && ready` is false when ready is false,
+// so the early exit is skipped and the handler continues while composing.
+// `!e.isComposing` and `!e.isComposing && other` are both false while composing
+// and do not guarantee the early exit either.
+const isComposingInGuaranteedExitPosition = ({ node, eventParamName }: { node: Node; eventParamName: string | undefined }): boolean => {
+  if (isMemberWithProp({ node, propName: 'isComposing', eventParamName })) {
+    return true;
+  }
+  if (node.type === 'LogicalExpression' && node.operator === '||') {
+    return (
+      isComposingInGuaranteedExitPosition({ node: node.left as Node, eventParamName }) ||
+      isComposingInGuaranteedExitPosition({ node: node.right as Node, eventParamName })
+    );
+  }
+  return false;
+};
+
+// Returns true when the IfStatement is a pure isComposing guard: the test
+// guarantees exit when composing and the consequent exits early (return/throw).
+const isPureIsComposingGuardStatement = ({
+  node,
+  eventParamName,
+}: {
+  node: Node;
+  eventParamName: string | undefined;
+}): boolean => {
+  if (node.type !== 'IfStatement') {
+    return false;
+  }
+  if (isComposingInGuaranteedExitPosition({ node: node.test, eventParamName }) === false) {
+    return false;
+  }
+  // If the consequent contains a key check, this is the wrapping pattern — not a pure guard.
+  if (containsKeyCheck({ node: node.consequent, eventParamName })) {
+    return false;
+  }
+  return consequentHasEarlyExit(node);
+};
+
+// Returns true when the IfStatement is a pure user-defined guard: test is exactly
+// `guardFn(e)` (single event param argument) and the consequent exits early.
+const isPureGuardFunctionStatement = ({
+  node,
+  guardFunctions,
+  eventParamName,
+}: {
+  node: Node;
+  guardFunctions: string[];
+  eventParamName: string | undefined;
+}): boolean => {
+  if (node.type !== 'IfStatement' || eventParamName === undefined) {
+    return false;
+  }
+  const { test } = node;
+  if (
+    test.type !== 'CallExpression' ||
+    test.callee.type !== 'Identifier' ||
+    !guardFunctions.includes(test.callee.name) ||
+    test.arguments.length !== 1 ||
+    test.arguments[0]?.type !== 'Identifier' ||
+    test.arguments[0].name !== eventParamName
+  ) {
+    return false;
+  }
+  return consequentHasEarlyExit(node);
+};
+
+type UncoveredKeyCheckArgs = {
+  node: Node | null | undefined;
+  eventParamName: string | undefined;
+  isKeyCheckNode: (candidateNode: Node) => boolean;
+  guardFunctions: string[];
+  visited: Set<object>;
+};
+
+// Iterates BlockStatement body in order, stopping after a pure guard statement
+// (isComposing or user-defined guard function). Subsequent statements are only
+// reached when not composing, so they are safe.
+const traverseBlockForUncoveredKeyCheck = ({
+  blockNode,
+  eventParamName,
+  isKeyCheckNode,
+  guardFunctions,
+  visited,
+}: Omit<UncoveredKeyCheckArgs, 'node'> & { blockNode: Node }): boolean => {
+  if (blockNode.type !== 'BlockStatement') {
+    return false;
+  }
+  for (const stmt of blockNode.body) {
+    if (isPureIsComposingGuardStatement({ node: stmt, eventParamName })) {
+      return false; // remaining siblings are safe — handler exits while composing
+    }
+    if (guardFunctions.length > 0 && isPureGuardFunctionStatement({ node: stmt, guardFunctions, eventParamName })) {
+      return false; // remaining siblings are safe — user-defined guard exits while composing
+    }
+    if (traverseForUncoveredKeyCheck({ node: stmt, eventParamName, isKeyCheckNode, guardFunctions, visited })) {
+      return true;
+    }
+  }
+  return false;
+};
+
+// Handles isComposing patterns on IfStatements. Returns true/false when the
+// node is fully handled, or undefined to fall through to normal traversal.
+const resolveIfStatementUncoveredKeyCheck = ({
+  ifNode,
+  eventParamName,
+  isKeyCheckNode,
+  guardFunctions,
+  visited,
+}: Omit<UncoveredKeyCheckArgs, 'node'> & { ifNode: Node }): boolean | undefined => {
+  if (ifNode.type !== 'IfStatement') {
+    return undefined;
+  }
+  const testHasIsComposing = walkAst({
+    predicate: (child) => isMemberWithProp({ node: child, propName: 'isComposing', eventParamName }),
+    node: ifNode.test,
+  });
+  if (testHasIsComposing) {
+    // The guard is only effective when isComposing in the test *blocks* execution
+    // (i.e. evaluates to false while composing). `!e.isComposing` blocks; bare
+    // `e.isComposing` passes — so `if (e.isComposing) { key check }` is unsafe.
+    const composingBlocks = isComposingInBlockingPosition({ node: ifNode.test, eventParamName });
+    // Inline: key check in test is guarded → skip test, check only alternate
+    if (composingBlocks && containsKeyCheck({ node: ifNode.test, eventParamName })) {
+      return traverseForUncoveredKeyCheck({ node: ifNode.alternate, eventParamName, isKeyCheckNode, guardFunctions, visited });
+    }
+    // Wrapping: key checks in consequent are guarded → skip consequent, check only alternate
+    if (composingBlocks && containsKeyCheck({ node: ifNode.consequent, eventParamName })) {
+      return traverseForUncoveredKeyCheck({ node: ifNode.alternate, eventParamName, isKeyCheckNode, guardFunctions, visited });
+    }
+    return undefined; // unrecognized isComposing pattern — fall through
+  }
+  // Nested pattern: `if (e.key === 'Enter') { if (e.isComposing) return; submit(); }`
+  // The test has a key check and the FIRST statement of the consequent is a pure
+  // guard. The guard must be first — any statement before it executes while
+  // composing, making the pattern unsafe:
+  //   `if (e.key === 'Enter') { submit(); if (e.isComposing) return; }` is NOT safe.
+  const testHasKeyCheck = containsKeyCheck({ node: ifNode.test, eventParamName });
+  if (testHasKeyCheck) {
+    const firstConsequentStmt = ifNode.consequent.type === 'BlockStatement'
+      ? ifNode.consequent.body[0]
+      : ifNode.consequent;
+    const firstIsGuard =
+      firstConsequentStmt !== undefined &&
+      (
+        isPureIsComposingGuardStatement({ node: firstConsequentStmt, eventParamName }) ||
+        (guardFunctions.length > 0 && isPureGuardFunctionStatement({ node: firstConsequentStmt, guardFunctions, eventParamName }))
+      );
+    if (firstIsGuard) {
+      return traverseForUncoveredKeyCheck({ node: ifNode.alternate, eventParamName, isKeyCheckNode, guardFunctions, visited });
+    }
+  }
+  return undefined; // no recognized pattern — fall through
+};
+
+const traverseForUncoveredKeyCheck = ({ node, eventParamName, isKeyCheckNode, guardFunctions, visited }: UncoveredKeyCheckArgs): boolean => {
+  if (node === null || node === undefined || typeof node !== 'object' || visited.has(node)) {
+    return false;
+  }
+  visited.add(node);
+  if (FUNCTION_TYPES.has(node.type)) {
+    return false;
+  }
+  if (node.type === 'BlockStatement') {
+    return traverseBlockForUncoveredKeyCheck({ blockNode: node, eventParamName, isKeyCheckNode, guardFunctions, visited });
+  }
+  if (node.type === 'IfStatement') {
+    const handled = resolveIfStatementUncoveredKeyCheck({ ifNode: node, eventParamName, isKeyCheckNode, guardFunctions, visited });
+    if (handled !== undefined) {
+      return handled;
+    }
+  }
+  if (isKeyCheckNode(node)) {
+    return true;
+  }
+  return getChildNodes(node).some((child) =>
+    traverseForUncoveredKeyCheck({ node: child, eventParamName, isKeyCheckNode, guardFunctions, visited }),
+  );
+};
+
+// Returns true if the handler body contains a key check that is NOT covered by
+// an isComposing guard (pure, inline, wrapping, or nested pattern) or by a
+// user-defined guard function from the guardFunctions option.
+export const containsKeyCheckOutsideIsComposingGuard = ({
+  node,
+  eventParamName,
+  guardFunctions = [],
+}: {
+  node: Node | null | undefined;
+  eventParamName: string | undefined;
+  guardFunctions?: string[];
+}): boolean =>
+  traverseForUncoveredKeyCheck({
+    node,
+    eventParamName,
+    isKeyCheckNode: makeIsKeyCheckNode(eventParamName),
+    guardFunctions,
+    visited: new Set<object>(),
   });
 
 const MODIFIER_KEY_PROPS = ['ctrlKey', 'metaKey', 'shiftKey', 'altKey'] as const;
@@ -497,19 +763,36 @@ export const containsKeyCheckOutsideModifierGuard = ({ node, eventParamName }: {
 export const hasGuardFunctionCall = ({
   node,
   guardFunctions,
+  eventParamName,
 }: {
   node: Node | null | undefined;
   guardFunctions: string[];
-}) =>
-  walkAst({
-    predicate: (candidateNode) =>
-      candidateNode.type === 'IfStatement' &&
-      walkAst({
-        predicate: (child) =>
-          child.type === 'CallExpression' &&
-          child.callee.type === 'Identifier' &&
-          guardFunctions.includes(child.callee.name),
-        node: candidateNode.test,
-      }),
+  eventParamName: string | undefined;
+}) => {
+  if (eventParamName === undefined) {
+    return false;
+  }
+  return walkAst({
+    predicate: (candidateNode) => {
+      if (candidateNode.type !== 'IfStatement') {
+        return false;
+      }
+      const { test } = candidateNode;
+      // Test must be exactly `guardFn(e)` — no negation, no compound conditions.
+      // This ensures the guard unconditionally covers the composing case.
+      if (
+        test.type !== 'CallExpression' ||
+        test.callee.type !== 'Identifier' ||
+        !guardFunctions.includes(test.callee.name) ||
+        test.arguments.length !== 1 ||
+        test.arguments[0]?.type !== 'Identifier' ||
+        test.arguments[0].name !== eventParamName
+      ) {
+        return false;
+      }
+      // Require early exit so the key handler cannot run after the guard.
+      return consequentHasEarlyExit(candidateNode);
+    },
     node,
   });
+};

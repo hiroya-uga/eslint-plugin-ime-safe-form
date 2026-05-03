@@ -199,7 +199,7 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, 
 | `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
 | `e.nativeEvent.isComposing \|\| e.nativeEvent.keyCode === 229` (React synthetic event) | React wraps the native event; `nativeEvent.isComposing` is equivalent to the native property |
 | `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
-| Guard function call in `IfStatement` (with `guardFunctions` option) | Function is declared as an equivalent IME guard |
+| `if (guardFn(e)) return;` (with `guardFunctions` option) | Guard function declared as an IME-safe guard; must appear before the key check it guards (and be first when nested inside a key-check if-body) |
 | Key check combined with a modifier via `&&` (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`) | IME cannot be composing while a modifier key is held |
 | Outer `if` whose test is a positive modifier expression, key check inside the body | Same reasoning — modifier held means no IME composition |
 | Key check inside a nested function | Out of scope for the keydown handler |
@@ -210,7 +210,7 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, 
 
 - **Ternary `isComposing` guard is not recognized.** Only `IfStatement` tests are checked. `e.isComposing ? null : (e.key === 'Enter' && submit())` will be flagged even though it is IME-safe. Use an `if` statement instead.
 - **`!==`/`!=` patterns in a block body are detected but not in isolation.** If the entire handler never reaches the target code after the key check, the flag may be a false positive. Use `// eslint-disable-next-line` for those rare cases.
-- **`isComposing` guard without early exit is not verified.** The rule recognizes any `IfStatement` whose condition references `e.isComposing`, regardless of whether the body actually returns or throws. Code like `if (e.isComposing) console.log("composing")` (no `return`) satisfies the check even though it does not prevent key processing. Always pair the guard with `return` (or equivalent).
+- **`isComposing` without early exit is not a guard.** The rule only recognises an `if (e.isComposing)` block as a guard when the consequent exits unconditionally (`return` or `throw`). `if (e.isComposing) console.log("composing")` does not qualify — subsequent key checks are still flagged. Always pair the guard with `return` or `throw`.
 - **Destructured event parameters are not detected.** If the event object is destructured in the handler signature, the rule cannot see the key check and will not flag it. Write the handler as `(e) => { if (e.key === 'Enter') … }` rather than `({ key }) => { if (key === 'Enter') … }`.
 
   ```js
@@ -222,13 +222,13 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, 
 
 - **`addEventListener` and `onkeydown =` do not scope by element type.** The rule cannot determine the element the handler is attached to at static analysis time. Even if the handler is on a `<div>`, it will be flagged. Only JSX patterns benefit from element-type scoping.
 
-- **`guardFunctions` trusts the listed functions blindly, including for the Safari `keyCode === 229` requirement.** The rule cannot inspect the body of the guard function. Any function in `guardFunctions` suppresses `requireKeyCode229` as well as `requireImeSafeSubmit`. Make sure the guard function handles both `e.isComposing` and `e.keyCode === 229` if Safari support is needed.
+- **`guardFunctions` trusts the listed functions, but requires a recognised call form.** The rule cannot inspect the body of the guard function, but it does enforce that the call appears as `if (guardFn(e)) return;` — with the event parameter as the only argument, no negation, no compound `&&` conditions, and an early exit (`return` or `throw`) in the if-body. At the top level of the handler body, the guard must appear before the key check it protects. Nested inside a key-check if-body, the guard must be the first statement (e.g. `if (e.key === 'Enter') { if (guardFn(e)) return; … }`); placing any statement before it is treated as unsafe. Any function in `guardFunctions` suppresses `requireKeyCode229` as well as `requireImeSafeSubmit`. Make sure the guard function handles both `e.isComposing` and `e.keyCode === 229` if Safari support is needed.
 
 ## Options
 
 ### `guardFunctions` (default: `[]`)
 
-If your codebase extracts the `isComposing` check into a shared helper, list those function names here. The rule will treat a call to any of these functions inside an `if` statement as an equivalent IME guard, and will not flag the handler.
+If your codebase extracts the `isComposing` check into a shared helper, list those function names here. The rule will treat a call matching `if (guardFn(e)) return;` — appearing before the guarded key check at the top level of the handler body, or as the **first** statement inside a key-check if-body — as an equivalent IME guard and will not flag the handler.
 
 ```js
 // eslint.config.js
@@ -245,7 +245,7 @@ export default [
 ```
 
 ```js
-// ✅ Recognised as an IME guard — no error
+// ✅ Recognized as an IME guard — no error
 const guardIsComposing = (e) => e.isComposing || e.keyCode === 229;
 
 input.addEventListener('keydown', (e) => {
@@ -254,7 +254,16 @@ input.addEventListener('keydown', (e) => {
 });
 ```
 
-Negated calls (`if (!guardIsComposing(e))`) and calls inside compound conditions (`&&`, `||`) are also recognized.
+The guard call must match a recognised form:
+
+- ✅ `if (guardIsComposing(e)) return;` — recognized (standalone)
+- ✅ `const ready = true; if (guardIsComposing(e)) return; if (e.key === 'Enter') submit();` — recognized (top-level guard still appears before the guarded key check)
+- ✅ `if (e.key === 'Enter') { if (guardIsComposing(e)) return; submit(); }` — recognized (first statement inside a key-check if-body)
+- ❌ `if (e.key === 'Enter') { submit(); if (guardIsComposing(e)) return; }` — guard is not first, not recognized
+- ❌ `if (!guardIsComposing(e)) return;` — negated, not recognized
+- ❌ `if (guardIsComposing(e) && other) return;` — compound `&&`, not recognized (may skip guard for some composing cases)
+- ❌ `if (guardIsComposing(state)) return;` — non-event argument, not recognized
+- ❌ `if (guardIsComposing(e, state)) return;` — extra arguments, not recognized
 
 > [!NOTE]
 > The rule cannot inspect the body of the guard function. It trusts that any function listed in `guardFunctions` correctly handles IME state, including the Safari `keyCode === 229` case. The `requireKeyCode229` check is skipped for these handlers.
