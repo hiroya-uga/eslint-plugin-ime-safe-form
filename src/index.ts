@@ -1,4 +1,6 @@
 import type { ESLint, Linter } from 'eslint';
+import noKeypressEvent from './rules/no-keypress-event';
+import requireImeSafeKeyEvents from './rules/require-ime-safe-key-events';
 import requireImeSafeSubmit from './rules/require-ime-safe-submit';
 import { VERSION } from './version';
 
@@ -8,6 +10,8 @@ const plugin = {
     version: VERSION,
   },
   rules: {
+    'no-keypress-event': noKeypressEvent,
+    'require-ime-safe-key-events': requireImeSafeKeyEvents,
     'require-ime-safe-submit': requireImeSafeSubmit,
   },
   configs: {} as Record<string, Linter.Config>,
@@ -17,7 +21,9 @@ const plugin = {
 plugin.configs['recommended'] = {
   plugins: { 'ime-safe-form': plugin },
   rules: {
+    'ime-safe-form/no-keypress-event': 'warn',
     'ime-safe-form/require-ime-safe-submit': 'warn',
+    'ime-safe-form/require-ime-safe-key-events': 'warn',
   },
 };
 
@@ -26,7 +32,9 @@ plugin.configs['recommended'] = {
 (plugin.configs as Record<string, unknown>)['recommended:legacy'] = {
   plugins: ['ime-safe-form'],
   rules: {
+    'ime-safe-form/no-keypress-event': 'warn',
     'ime-safe-form/require-ime-safe-submit': 'warn',
+    'ime-safe-form/require-ime-safe-key-events': 'warn',
   },
 };
 
