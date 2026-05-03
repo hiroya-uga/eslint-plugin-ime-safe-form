@@ -1,6 +1,6 @@
 # require-ime-safe-submit
 
-Disallow IME-unsafe Enter key event handlers. Require an `e.isComposing` guard in `keydown`/`keyup` handlers with Enter key checks, or use the form's `submit` event instead.
+Disallow IME-unsafe Enter key event handlers. Use the form's `submit` event instead of handling Enter in `keydown`/`keyup`, or add an `e.isComposing` guard.
 
 > [!NOTE]
 > If you need to guard key events beyond Enter (such as `Escape` or arrow keys), use [`require-ime-safe-key-events`](./require-ime-safe-key-events.md) instead.
