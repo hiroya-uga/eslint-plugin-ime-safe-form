@@ -98,7 +98,7 @@ export type KeyCheckHelpers = {
   hasKeyCheck: (args: KeyCheckArgs) => boolean;
 };
 
-export const makeRuleCreate = ({ checkHelpers }: { checkHelpers: KeyCheckHelpers }): Rule.RuleModule['create'] =>
+export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { checkHelpers: KeyCheckHelpers; checkSafariEnter?: boolean }): Rule.RuleModule['create'] =>
   (context) => {
     const { outsideIsComposingGuard, outsideModifierGuard, hasKeyCheck } = checkHelpers;
 
@@ -137,6 +137,7 @@ export const makeRuleCreate = ({ checkHelpers }: { checkHelpers: KeyCheckHelpers
     }) => {
       if (allowIsComposingGuard && outsideIsComposingGuard({ node: body, eventParamName }) === false) {
         const needsSafariKeyCodeGuard =
+          checkSafariEnter &&
           checkKeyCodeForSafari &&
           hasKeyCode229Check({ node: body, eventParamName }) === false &&
           containsEnterKeyCheckOutsideModifierGuard({ node: body, eventParamName });

@@ -706,6 +706,70 @@ export const containsEnterKeyCheckOutsideIsComposingGuard = ({
     visited: new Set<object>(),
   });
 
+const makeIsNonEnterKeySwitchStatement = (eventParamName: string | undefined) => (node: Node): boolean => {
+  if (node.type !== 'SwitchStatement') {
+    return false;
+  }
+  const { discriminant, cases } = node;
+  if (
+    !ENTER_STRING_PROPS.some((prop) => isMemberWithProp({ node: discriminant, propName: prop, eventParamName })) &&
+    !LEGACY_CODE_PROPS.some((prop) => isMemberWithProp({ node: discriminant, propName: prop, eventParamName }))
+  ) {
+    return false;
+  }
+  // True when there is at least one non-Enter branch:
+  // - an explicit non-Enter case value such as 'Escape' or 27
+  // - a default branch, which is reached for non-Enter keys unless an earlier case matches
+  // A switch that has only Enter cases and no default is handled by require-ime-safe-submit alone.
+  return cases.some(
+    (switchCase) =>
+      switchCase.test === null ||
+      switchCase.test === undefined ||
+      (!isLiteral({ node: switchCase.test, value: 'Enter' }) &&
+        !isLiteral({ node: switchCase.test, value: 13 })),
+  );
+};
+
+const makeIsNonEnterKeyCheckNode = (eventParamName: string | undefined) => {
+  const isKeyCheckBinaryExpression = makeIsKeyCheckBinaryExpression(eventParamName);
+  const isEnterKeyBinaryExpression = makeIsEnterKeyBinaryExpression(eventParamName);
+  const isNonEnterKeySwitchStatement = makeIsNonEnterKeySwitchStatement(eventParamName);
+  return (node: Node): boolean =>
+    (isKeyCheckBinaryExpression(node) && !isEnterKeyBinaryExpression(node)) || isNonEnterKeySwitchStatement(node);
+};
+
+export const containsNonEnterKeyCheck = ({ node, eventParamName }: { node: Node | null | undefined; eventParamName: string | undefined }) =>
+  walkAst({ predicate: makeIsNonEnterKeyCheckNode(eventParamName), node });
+
+export const containsNonEnterKeyCheckOutsideIsComposingGuard = ({
+  node,
+  eventParamName,
+  guardFunctions = [],
+}: {
+  node: Node | null | undefined;
+  eventParamName: string | undefined;
+  guardFunctions?: string[];
+}): boolean =>
+  traverseForUncoveredKeyCheck({
+    node,
+    eventParamName,
+    isKeyCheckNode: makeIsNonEnterKeyCheckNode(eventParamName),
+    guardFunctions,
+    visited: new Set<object>(),
+  });
+
+export const containsNonEnterKeyCheckOutsideModifierGuard = ({ node, eventParamName }: { node: Node | null | undefined; eventParamName: string | undefined }) => {
+  const isNonEnterKeyCheckNode = makeIsNonEnterKeyCheckNode(eventParamName);
+  const boundContainsNonEnterKeyCheck = (candidate: Node | null | undefined) =>
+    walkAst({ predicate: isNonEnterKeyCheckNode, node: candidate });
+  return containsRelevantKeyCheckOutsideModifierGuard({
+    node,
+    containsRelevantKeyCheck: boundContainsNonEnterKeyCheck,
+    matchesRelevantKeyCheckNode: isNonEnterKeyCheckNode,
+    eventParamName,
+  });
+};
+
 const MODIFIER_KEY_PROPS = ['ctrlKey', 'metaKey', 'shiftKey', 'altKey'] as const;
 
 const andChainHasKeyWithModifier = ({

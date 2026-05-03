@@ -1,8 +1,8 @@
 import type { Rule } from 'eslint';
 import {
-  containsKeyCheck,
-  containsKeyCheckOutsideIsComposingGuard,
-  containsKeyCheckOutsideModifierGuard,
+  containsNonEnterKeyCheck,
+  containsNonEnterKeyCheckOutsideIsComposingGuard,
+  containsNonEnterKeyCheckOutsideModifierGuard,
 } from './helpers';
 import { makeRuleCreate, RULE_SCHEMA } from './key-event-rule';
 
@@ -20,8 +20,8 @@ const rule: Rule.RuleModule = {
     type: 'suggestion',
     docs: {
       description:
-        'Disallow IME-unsafe key event handlers. Require an e.isComposing guard in keydown/keyup handlers with key checks, and prohibit keypress entirely.',
-      recommended: false,
+        'Disallow IME-unsafe key event handlers for non-Enter keys. Require an e.isComposing guard in keydown/keyup handlers with key checks, and prohibit keypress entirely. Use require-ime-safe-submit for Enter-key-specific checks.',
+      recommended: true,
       url: 'https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-key-events.md',
     },
     messages,
@@ -30,10 +30,11 @@ const rule: Rule.RuleModule = {
 
   create: makeRuleCreate({
     checkHelpers: {
-      outsideIsComposingGuard: containsKeyCheckOutsideIsComposingGuard,
-      outsideModifierGuard: containsKeyCheckOutsideModifierGuard,
-      hasKeyCheck: containsKeyCheck,
+      outsideIsComposingGuard: containsNonEnterKeyCheckOutsideIsComposingGuard,
+      outsideModifierGuard: containsNonEnterKeyCheckOutsideModifierGuard,
+      hasKeyCheck: containsNonEnterKeyCheck,
     },
+    checkSafariEnter: false,
   }),
 };
 

@@ -20,6 +20,7 @@ plugin.configs['recommended'] = {
   plugins: { 'ime-safe-form': plugin },
   rules: {
     'ime-safe-form/require-ime-safe-submit': 'warn',
+    'ime-safe-form/require-ime-safe-key-events': 'warn',
   },
 };
 
@@ -29,6 +30,7 @@ plugin.configs['recommended'] = {
   plugins: ['ime-safe-form'],
   rules: {
     'ime-safe-form/require-ime-safe-submit': 'warn',
+    'ime-safe-form/require-ime-safe-key-events': 'warn',
   },
 };
 
