@@ -31,6 +31,23 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.onkeydown = (e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); };`,
     },
+    // React synthetic event — nativeEvent guards still work
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
+    },
+    // Enter variants: e.code / e.which and switch(e.code)
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.code === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.which === 13) submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
+    {
+      code: `input.addEventListener('keyup', (e) => { if (e.isComposing) return; switch(e.code) { case 'Enter': submit(); break; } });`,
+      options: [{ checkKeyCodeForSafari: false }],
+    },
     // Non-Enter via onkeydown — not flagged
     {
       code: `input.onkeydown = (e) => { if (e.key === 'Escape') close(); };`,
@@ -38,6 +55,9 @@ tester.run('require-ime-safe-submit', rule, {
     // ── JSX ────────────────────────────────────────────────────────────────
     {
       code: `<input onKeyDown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); }} />;`,
+    },
+    {
+      code: `<input onkeydown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') submit(); }} />;`,
     },
     // Non-Enter JSX — not flagged
     {
@@ -59,10 +79,26 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keyup', (e) => { if (e.key === 'Enter') submit(); });`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keyup' } }],
     },
+    {
+      code: `window.addEventListener('keyup', (e) => { if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keyup' } }],
+    },
+    {
+      code: `input.addEventListener('keyup', (e) => { switch(e.code) { case 'Enter': submit(); break; } });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keyup' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.which === 13) submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
     // Missing Safari keyCode guard
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
       options: [{ checkKeyCodeForSafari: true }],
+      errors: [{ messageId: 'requireKeyCode229' }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.nativeEvent.isComposing) return; if (e.nativeEvent.key === 'Enter') submit(); });`,
       errors: [{ messageId: 'requireKeyCode229' }],
     },
     // ── onkeydown assignment ────────────────────────────────────────────────
@@ -74,6 +110,10 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `<input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onKeyDown' } }],
+    },
+    {
+      code: `<input onkeydown={(e) => { if (e.key === 'Enter') submit(); }} />;`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
     },
   ],
 });
