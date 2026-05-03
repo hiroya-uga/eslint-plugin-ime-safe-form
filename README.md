@@ -88,10 +88,11 @@ export default [
 ];
 ```
 
-**Note:** The `recommended` config sets both rules to `"warn"`. To treat violations as errors, configure them manually:
+**Note:** The `recommended` config sets all three rules to `"warn"`. To treat violations as errors, configure them manually:
 
 ```js
 rules: {
+  'ime-safe-form/no-keypress-event': 'error',
   'ime-safe-form/require-ime-safe-submit': 'error',
   'ime-safe-form/require-ime-safe-key-events': 'error',
 }
@@ -99,8 +100,9 @@ rules: {
 
 ### Manual configuration
 
-Both rules are independent and complementary:
+All three rules are independent and complementary:
 
+- `no-keypress-event` — flags any use of the deprecated `keypress` event; suggests `keydown` instead
 - `require-ime-safe-submit` — Enter key only; also suggests the form's `submit` event as an alternative
 - `require-ime-safe-key-events` — all **non-Enter** keys (Escape, ArrowDown, Tab, etc.)
 
@@ -111,6 +113,7 @@ export default [
   {
     plugins: { 'ime-safe-form': imeSafeForm },
     rules: {
+      'ime-safe-form/no-keypress-event': 'warn',
       'ime-safe-form/require-ime-safe-submit': 'warn',
       'ime-safe-form/require-ime-safe-key-events': 'warn',
     },
@@ -133,6 +136,7 @@ Or manually:
 module.exports = {
   plugins: ['ime-safe-form'],
   rules: {
+    'ime-safe-form/no-keypress-event': 'warn',
     'ime-safe-form/require-ime-safe-submit': 'warn',
     'ime-safe-form/require-ime-safe-key-events': 'warn',
   },
@@ -170,8 +174,21 @@ module.exports = {
 
 | Rule | Description | Recommended |
 |---|---|---|
+| [`no-keypress-event`](#no-keypress-event) | Flags any use of the deprecated `keypress` event and suggests `keydown` instead | ✅ |
 | [`require-ime-safe-submit`](#require-ime-safe-submit) | Flags Enter key checks in `keydown`/`keyup` without an `e.isComposing` guard; suggests the form's `submit` event as the primary alternative | ✅ |
 | [`require-ime-safe-key-events`](#require-ime-safe-key-events) | Flags non-Enter key checks in `keydown`/`keyup` without an `e.isComposing` guard; use alongside `require-ime-safe-submit` for full key coverage | ✅ |
+
+### no-keypress-event
+
+Flags any use of the `keypress` event — `addEventListener('keypress', …)`, `element.onkeypress = …`, or JSX `onKeyPress` / `onkeypress` — and suggests replacing it with `keydown`. `keypress` is deprecated by the browser standard; it was always unreliable with IME input regardless of any `e.isComposing` guard.
+
+See the [full rule documentation](https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/no-keypress-event.md).
+
+#### Detected patterns
+
+- `element.addEventListener('keypress', handler)` — always flagged, including named function references
+- `element.onkeypress = handler` — property assignment
+- JSX `onKeyPress` / `onkeypress` props — flagged on all element types
 
 ### require-ime-safe-submit
 
@@ -182,9 +199,8 @@ See the [full rule documentation](https://github.com/hiroya-uga/eslint-plugin-im
 #### Detected patterns
 
 - `element.addEventListener('keydown' | 'keyup', handler)` where the handler checks `e.key === 'Enter'` (or `e.keyCode === 13`, `e.code === 'Enter'`) **without** an `e.isComposing` guard or modifier key condition
-- `element.addEventListener('keypress', handler)` with an Enter check — always flagged (`keypress` is deprecated)
-- `element.onkeydown` / `element.onkeyup` / `element.onkeypress` assignments with Enter checks
-- JSX `onKeyDown` / `onKeyUp` / `onKeyPress` props on IME-capable elements with Enter checks
+- `element.onkeydown` / `element.onkeyup` assignments with Enter checks
+- JSX `onKeyDown` / `onKeyUp` props on IME-capable elements with Enter checks
 
 ### require-ime-safe-key-events
 
@@ -195,9 +211,8 @@ See the [full rule documentation](https://github.com/hiroya-uga/eslint-plugin-im
 #### Detected patterns
 
 - `element.addEventListener('keydown' | 'keyup', handler)` where the handler checks a non-Enter key (`e.key === 'Escape'`, `e.key === 'Tab'`, etc.) **without** an `e.isComposing` guard or modifier key condition
-- `element.addEventListener('keypress', handler)` with non-Enter key checks — always flagged (`keypress` is deprecated)
-- `element.onkeydown` / `element.onkeyup` / `element.onkeypress` assignments with non-Enter key checks
-- JSX `onKeyDown` / `onKeyUp` / `onKeyPress` props on IME-capable elements with non-Enter key checks
+- `element.onkeydown` / `element.onkeyup` assignments with non-Enter key checks
+- JSX `onKeyDown` / `onKeyUp` props on IME-capable elements with non-Enter key checks
 - `switch(e.key) { case 'Enter': ...; case 'Escape': ... }` — a switch containing any non-Enter case is flagged even when an Enter case is also present
 
 ## Development

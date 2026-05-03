@@ -17,8 +17,6 @@ This rule requires one of three correct approaches:
 2. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside the Enter check, IME composition cannot be active; no guard is needed
 3. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
 
-`keypress` is prohibited entirely because it is deprecated. Use the form's `submit` event, or use `keydown` with an `e.isComposing` guard instead.
-
 ### Examples of **incorrect** code
 
 ```js
@@ -57,17 +55,6 @@ input.onkeydown = (e) => {
   if (e.key === 'Enter') submit();
 };
 
-// keypress — always prohibited (deprecated event)
-input.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') submit();
-});
-
-// keypress with isComposing — still prohibited
-input.addEventListener('keypress', (e) => {
-  if (e.isComposing) return;
-  if (e.key === 'Enter') submit();
-});
-
 // Modifier negation is not a guard — IME Enter has shiftKey === false, so !e.shiftKey is true
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) submit();
@@ -85,10 +72,6 @@ input.addEventListener('keydown', (e) => {
 
 // JSX — lowercase attribute name (used with Web Components and non-React frameworks)
 <input onkeydown={(e) => { if (e.key === 'Enter') submitForm(); }} />
-
-// JSX — onKeyPress always prohibited
-<input onKeyPress={(e) => { if (e.key === 'Enter') submitForm(); }} />
-<input onkeypress={(e) => { if (e.key === 'Enter') submitForm(); }} />
 ```
 
 ### Examples of **correct** code
@@ -163,18 +146,16 @@ input.addEventListener('keydown', (e) => {
 | Pattern | Example |
 |---|---|
 | `addEventListener('keydown' \| 'keyup', handler)` with Enter check | `el.addEventListener('keydown', e => { if (e.key === 'Enter') … })` |
-| `addEventListener('keypress', handler)` with Enter check | Always flagged (deprecated event) |
-| `onkeydown` / `onkeyup` / `onkeypress` property assignment with Enter check | `el.onkeydown = e => { if (e.key === 'Enter') … }` |
+| `onkeydown` / `onkeyup` property assignment with Enter check | `el.onkeydown = e => { if (e.key === 'Enter') … }` |
 | JSX `onKeyDown` / `onKeyUp` prop on IME-capable elements with Enter check | `<input onKeyDown={e => { if (e.key === 'Enter') … }} />` |
 | JSX `onkeydown` / `onkeyup` prop on IME-capable elements with Enter check | `<input onkeydown={e => { if (e.key === 'Enter') … }} />` |
-| JSX `onKeyPress` / `onkeypress` prop with Enter check | Always flagged (deprecated event) |
 | `e.key` / `e.code` comparison to `'Enter'` | `if (e.key === 'Enter') …` / `if (e.key !== 'Enter') return` |
 | Legacy `e.keyCode` / `e.which` comparison to `13` | `if (e.keyCode === 13) …` / `if (e.keyCode !== 13) return` |
 | `switch` on `e.key` / `e.code` / `e.keyCode` / `e.which` with `'Enter'` / `13` case | `switch(e.key) { case 'Enter': … }` |
 
 ### IME-capable elements (JSX only)
 
-The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, `onkeypress`) are only checked on elements where IME input is possible. Key checks on other elements (such as `<div>` or `<button>`) are not flagged.
+The JSX patterns (`onKeyDown`, `onKeyUp`, `onkeydown`, `onkeyup`) are only checked on elements where IME input is possible. Key checks on other elements (such as `<div>` or `<button>`) are not flagged.
 
 | Element | Flagged by default |
 |---|---|
@@ -262,9 +243,6 @@ The guard call must match a recognised form:
 
 > [!NOTE]
 > The rule cannot inspect the body of the guard function. It trusts that any function listed in `guardFunctions` correctly handles IME state, including the Safari `keyCode === 229` case. The `requireKeyCode229` check is skipped for these handlers.
-
-> [!NOTE]
-> `guardFunctions` has no effect on `keypress` handlers — `keypress` is prohibited regardless of any guard.
 
 ### `jsxComponents`
 

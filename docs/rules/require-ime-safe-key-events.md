@@ -1,6 +1,6 @@
 # require-ime-safe-key-events
 
-Disallow IME-unsafe key event handlers for non-Enter keys. Require an `e.isComposing` guard in `keydown`/`keyup` handlers with non-Enter key checks, and prohibit `keypress` entirely.
+Disallow IME-unsafe key event handlers for non-Enter keys. Require an `e.isComposing` guard in `keydown`/`keyup` handlers with non-Enter key checks.
 
 > [!NOTE]
 > If your main concern is Enter-driven form submission, use [`require-ime-safe-submit`](./require-ime-safe-submit.md) instead. That rule is Enter-key specific and also accepts the form's `submit` event as an alternative fix.
@@ -15,8 +15,6 @@ This rule requires one of two correct approaches:
 
 1. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside the key check, IME composition cannot be active; no guard is needed
 2. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
-
-`keypress` is prohibited entirely because it is deprecated. Use `keydown` with an `e.isComposing` guard instead.
 
 ### Examples of **incorrect** code
 
@@ -72,17 +70,6 @@ input.onkeydown = (e) => {
   if (e.key === 'Escape') closeDialog();
 };
 
-// keypress — always prohibited (deprecated event)
-input.addEventListener('keypress', (e) => {
-  if (e.key === 'Escape') closeDialog();
-});
-
-// keypress with isComposing — still prohibited
-input.addEventListener('keypress', (e) => {
-  if (e.isComposing) return;
-  if (e.key === 'Escape') closeDialog();
-});
-
 // Modifier negation is not a guard — plain Escape still fires
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !e.shiftKey) closeDialog();
@@ -100,10 +87,6 @@ input.addEventListener('keydown', (e) => {
 
 // JSX — lowercase attribute name (used with Web Components and non-React frameworks)
 <input onkeydown={(e) => { if (e.key === 'Tab') focusNext(); }} />
-
-// JSX — onKeyPress always prohibited
-<input onKeyPress={(e) => { if (e.key === 'Escape') closeDialog(); }} />
-<input onkeypress={(e) => { if (e.key === 'Escape') closeDialog(); }} />
 ```
 
 ### Examples of **correct** code
@@ -180,18 +163,16 @@ input.addEventListener('keydown', (e) => {
 | Pattern | Example |
 |---|---|
 | `addEventListener('keydown' \| 'keyup', handler)` with a non-Enter key check | `el.addEventListener('keydown', e => { if (e.key === 'Escape') ... })` |
-| `addEventListener('keypress', handler)` with a non-Enter key check | Always flagged (deprecated event) |
-| `onkeydown` / `onkeyup` / `onkeypress` property assignment with a non-Enter key check | `el.onkeydown = e => { if (e.key === 'Tab') ... }` |
+| `onkeydown` / `onkeyup` property assignment with a non-Enter key check | `el.onkeydown = e => { if (e.key === 'Tab') ... }` |
 | JSX `onKeyDown` / `onKeyUp` prop on IME-capable elements with a non-Enter key check | `<input onKeyDown={e => { if (e.key === 'Escape') ... }} />` |
 | JSX `onkeydown` / `onkeyup` prop on IME-capable elements with a non-Enter key check | `<input onkeydown={e => { if (e.key === 'Tab') ... }} />` |
-| JSX `onKeyPress` / `onkeypress` prop with a non-Enter key check | Always flagged (deprecated event) |
 | `e.key` / `e.code` comparison to a non-Enter value | `if (e.key === 'Escape') ...` / `if (e.key !== 'Tab') return` |
 | Legacy `e.keyCode` / `e.which` comparison to a non-Enter value | `if (e.keyCode === 27) ...` / `if (e.which !== 9) return` |
 | `switch` on `e.key` / `e.code` / `e.keyCode` / `e.which` with any non-Enter case or `default` branch | `switch (e.key) { case 'Enter': ...; case 'Escape': ... }` |
 
 ### IME-capable elements (JSX only)
 
-The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, `onkeypress`) are only checked on elements where IME input is possible. Key checks on other elements (such as `<div>` or `<button>`) are not flagged.
+The JSX patterns (`onKeyDown`, `onKeyUp`, `onkeydown`, `onkeyup`) are only checked on elements where IME input is possible. Key checks on other elements (such as `<div>` or `<button>`) are not flagged.
 
 | Element | Flagged by default |
 |---|---|

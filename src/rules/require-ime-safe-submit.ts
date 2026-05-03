@@ -9,8 +9,6 @@ import { makeRuleCreate, RULE_SCHEMA } from './key-event-rule';
 const messages = {
   requireImeSafeSubmit:
     "Enter key check in '{{eventName}}' without an IME composition guard. Use the form's 'submit' event, or add 'if (e.isComposing) return;'.",
-  keypressProhibited:
-    "'keypress' is deprecated. Use the form's 'submit' event, or use 'keydown' with an 'if (e.isComposing) return;' guard instead.",
   requireKeyCode229:
     "In Safari, compositionend fires before keydown, so e.isComposing is false when Enter confirms IME. Add '|| e.keyCode === 229' to the guard: 'if (e.isComposing || e.keyCode === 229) return;'.",
 } as const;

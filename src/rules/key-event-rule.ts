@@ -2,8 +2,6 @@ import type { Rule } from 'eslint';
 import type { BaseNode, Node } from 'estree';
 import {
   containsEnterKeyCheckOutsideModifierGuard,
-  DEPRECATED_JSX_KEY_EVENTS,
-  DEPRECATED_KEY_EVENTS,
   hasKeyCode229Check,
   isImeCapableJsxElement,
   JSX_KEY_EVENTS,
@@ -127,15 +125,13 @@ export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { chec
       reportNode,
       eventName,
       eventParamName,
-      allowIsComposingGuard,
     }: {
       body: Node;
       reportNode: BaseNode;
       eventName: string;
       eventParamName: string | undefined;
-      allowIsComposingGuard: boolean;
     }) => {
-      if (allowIsComposingGuard && outsideIsComposingGuard({ node: body, eventParamName }) === false) {
+      if (outsideIsComposingGuard({ node: body, eventParamName }) === false) {
         const needsSafariKeyCodeGuard =
           checkSafariEnter &&
           checkKeyCodeForSafari &&
@@ -146,16 +142,16 @@ export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { chec
         }
         return;
       }
-      if (allowIsComposingGuard && guardFunctions.length > 0 && outsideIsComposingGuard({ node: body, eventParamName, guardFunctions }) === false) {
+      if (guardFunctions.length > 0 && outsideIsComposingGuard({ node: body, eventParamName, guardFunctions }) === false) {
         return;
       }
-      if (allowIsComposingGuard && outsideModifierGuard({ node: body, eventParamName }) === false) {
+      if (outsideModifierGuard({ node: body, eventParamName }) === false) {
         return;
       }
       if (hasKeyCheck({ node: body, eventParamName })) {
         context.report({
           node: reportNode,
-          messageId: allowIsComposingGuard ? 'requireImeSafeSubmit' : 'keypressProhibited',
+          messageId: 'requireImeSafeSubmit',
           data: { eventName },
         });
       }
@@ -165,12 +161,10 @@ export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { chec
       handlerNode,
       reportNode,
       eventName,
-      allowIsComposingGuard,
     }: {
       handlerNode: Node | null | undefined;
       reportNode: BaseNode;
       eventName: string;
-      allowIsComposingGuard: boolean;
     }) => {
       if (handlerNode === null || handlerNode === undefined) {
         return;
@@ -181,7 +175,7 @@ export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { chec
       const firstParam = handlerNode.params[0];
       const paramBinding = firstParam?.type === 'AssignmentPattern' ? firstParam.left : firstParam;
       const eventParamName = paramBinding?.type === 'Identifier' ? paramBinding.name : undefined;
-      checkHandlerBody({ body: handlerNode.body, reportNode, eventName, eventParamName, allowIsComposingGuard });
+      checkHandlerBody({ body: handlerNode.body, reportNode, eventName, eventParamName });
     };
 
     return {
@@ -210,7 +204,6 @@ export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { chec
           handlerNode: args[1],
           reportNode: node,
           eventName: eventArg.value,
-          allowIsComposingGuard: !DEPRECATED_KEY_EVENTS.has(eventArg.value),
         });
       },
 
@@ -232,7 +225,6 @@ export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { chec
           handlerNode: right,
           reportNode: left,
           eventName: propName,
-          allowIsComposingGuard: !DEPRECATED_KEY_EVENTS.has(propName.slice(2)),
         });
       },
 
@@ -259,7 +251,6 @@ export const makeRuleCreate = ({ checkHelpers, checkSafariEnter = true }: { chec
           handlerNode: value.expression,
           reportNode: node.name,
           eventName: node.name.name,
-          allowIsComposingGuard: !DEPRECATED_JSX_KEY_EVENTS.has(node.name.name),
         });
       },
     };

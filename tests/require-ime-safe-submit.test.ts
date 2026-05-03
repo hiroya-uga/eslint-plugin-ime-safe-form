@@ -59,10 +59,6 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keyup', (e) => { if (e.key === 'Enter') submit(); });`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keyup' } }],
     },
-    {
-      code: `input.addEventListener('keypress', (e) => { if (e.key === 'Enter') submit(); });`,
-      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'keypress' } }],
-    },
     // Missing Safari keyCode guard
     {
       code: `input.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,

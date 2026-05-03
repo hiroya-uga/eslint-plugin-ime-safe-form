@@ -110,9 +110,6 @@ tester.run('require-ime-safe-key-events', rule, {
       code: `input.addEventListener('keyup', handleKeyup);`,
     },
     {
-      code: `input.addEventListener('keypress', handleKeypress);`,
-    },
-    {
       code: `input.onkeydown = handleKeydown;`,
     },
     {
@@ -281,19 +278,6 @@ tester.run('require-ime-safe-key-events', rule, {
     {
       code: `window.onkeydown = (e) => { if (e.key === 'Escape') close(); };`,
       errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'onkeydown' } }],
-    },
-    // ── keypress — always flagged (deprecated) ────────────────────────────────
-    {
-      code: `input.addEventListener('keypress', (e) => { if (e.key === 'Escape') close(); });`,
-      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'keypress' } }],
-    },
-    {
-      code: `input.onkeypress = (e) => { if (e.key === 'Escape') close(); };`,
-      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onkeypress' } }],
-    },
-    {
-      code: `<input onKeyPress={(e) => { if (e.key === 'Escape') close(); }} />;`,
-      errors: [{ messageId: 'keypressProhibited', data: { eventName: 'onKeyPress' } }],
     },
     // ── onkeydown / onkeyup assignment ────────────────────────────────────────
     {

@@ -155,11 +155,8 @@ export const FUNCTION_TYPES = new Set(['FunctionExpression', 'ArrowFunctionExpre
 const ENTER_STRING_PROPS = ['key', 'code'] as const;
 const LEGACY_CODE_PROPS = ['keyCode', 'which'] as const;
 
-export const KEY_EVENTS = new Set(['keydown', 'keyup', 'keypress']);
-/** keypress is deprecated: e.isComposing does not exempt it from the rule. */
-export const DEPRECATED_KEY_EVENTS = new Set(['keypress']);
-export const JSX_KEY_EVENTS = new Set(['onKeyDown', 'onKeyUp', 'onKeyPress', 'onkeydown', 'onkeyup', 'onkeypress']);
-export const DEPRECATED_JSX_KEY_EVENTS = new Set(['onKeyPress', 'onkeypress']);
+export const KEY_EVENTS = new Set(['keydown', 'keyup']);
+export const JSX_KEY_EVENTS = new Set(['onKeyDown', 'onKeyUp', 'onkeydown', 'onkeyup']);
 
 /**
  * Returns true if `node` is the event parameter directly (`e`) or specifically
