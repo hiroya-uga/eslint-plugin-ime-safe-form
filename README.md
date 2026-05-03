@@ -8,9 +8,6 @@
 
 ESLint plugin to enforce IME-safe key-event handling for users who type with an IME (Input Method Editor).
 
-> [!NOTE]
-> The preferred rule name is `require-ime-safe-key-events`. In 1.x, `imeSafeForm.configs.recommended` still enables the deprecated alias `require-ime-safe-submit` for compatibility. If you want to adopt the new rule name now, configure it manually and do not enable both at the same time.
-
 ## Quick Start
 
 ```sh
@@ -32,7 +29,7 @@ Try it in the [playground](https://github.com/hiroya-uga/eslint-plugin-ime-safe-
 
 When checking for the Enter key in `keydown`/`keyup` handlers to submit a form, users typing with an IME experience broken input: pressing Enter to **confirm IME candidates** accidentally triggers form submission before the composition is complete.
 
-There are three correct approaches:
+There are three correct approaches for Enter / form submission:
 
 ```js
 // ✅ Option 1: use the form's submit event (fires after composition ends — no guard needed)
@@ -60,6 +57,8 @@ input.addEventListener('keydown', (e) => {
 
 `keypress` is **prohibited entirely** as it is deprecated.
 
+The same IME race condition applies to non-Enter keys too — Escape, ArrowDown, and others can fire while IME composition is active. For those cases, use [`require-ime-safe-key-events`](#require-ime-safe-key-events).
+
 **Safari note:** In Safari, `compositionend` fires before `keydown`, so `e.isComposing` is `false` when Enter confirms IME. The `e.keyCode === 229` check covers this gap. To require only `e.isComposing` (if Safari support is not needed), set `{ checkKeyCodeForSafari: false }` in the rule options.
 
 **Custom guard functions:** If you extract the `isComposing` check into a shared helper, use the `guardFunctions` option to register the function name so the rule recognises it as an IME guard:
@@ -68,7 +67,7 @@ input.addEventListener('keydown', (e) => {
 const guardIsComposing = (e) => e.isComposing || e.keyCode === 229;
 
 // eslint.config.js
-rules: { 'ime-safe-form/require-ime-safe-key-events': ['warn', { guardFunctions: ['guardIsComposing'] }] }
+rules: { 'ime-safe-form/require-ime-safe-submit': ['warn', { guardFunctions: ['guardIsComposing'] }] }
 ```
 
 ## Installation
@@ -95,23 +94,10 @@ export default [
 rules: { 'ime-safe-form/require-ime-safe-submit': 'error' }
 ```
 
-In 1.x, `recommended` still enables `require-ime-safe-submit`. To adopt the preferred new rule name, register the plugin manually and enable `require-ime-safe-key-events` instead:
-
-```js
-import imeSafeForm from 'eslint-plugin-ime-safe-form';
-
-export default [
-  {
-    plugins: { 'ime-safe-form': imeSafeForm },
-    rules: {
-      'ime-safe-form/require-ime-safe-key-events': 'warn',
-    },
-  },
-];
-```
-
 ### Manual configuration
 
+To guard non-Enter key checks too (Escape, ArrowDown, etc.), use `require-ime-safe-key-events` instead of — not alongside — `require-ime-safe-submit`. Both rules flag Enter key checks, so enabling them simultaneously produces duplicate reports for Enter:
+
 ```js
 import imeSafeForm from 'eslint-plugin-ime-safe-form';
 
@@ -119,6 +105,8 @@ export default [
   {
     plugins: { 'ime-safe-form': imeSafeForm },
     rules: {
+      // Full coverage: Enter + non-Enter keys.
+      // Use this instead of require-ime-safe-submit, not alongside it.
       'ime-safe-form/require-ime-safe-key-events': 'warn',
     },
   },
@@ -140,7 +128,7 @@ Or manually:
 module.exports = {
   plugins: ['ime-safe-form'],
   rules: {
-    'ime-safe-form/require-ime-safe-key-events': 'warn',
+    'ime-safe-form/require-ime-safe-submit': 'warn',
   },
 };
 ```
@@ -176,18 +164,34 @@ module.exports = {
 
 | Rule | Description | Recommended |
 |---|---|---|
-| [`require-ime-safe-key-events`](#require-ime-safe-key-events) | Preferred rule name. `require-ime-safe-submit` remains a deprecated alias in 1.x. | ✅ via alias in `recommended` |
+| [`require-ime-safe-submit`](#require-ime-safe-submit) | Flags Enter key checks in `keydown`/`keyup` without an `e.isComposing` guard; suggests the form's `submit` event as the primary alternative | ✅ |
+| [`require-ime-safe-key-events`](#require-ime-safe-key-events) | Flags any key check in `keydown`/`keyup` without an `e.isComposing` guard; covers all keys including Enter — use instead of `require-ime-safe-submit` for full coverage | — |
 
-### require-ime-safe-key-events
+### require-ime-safe-submit
 
-`require-ime-safe-submit` remains available as a deprecated alias in 1.x. The implementation is shared, so do not enable both names at once.
+Detects Enter key checks in `keydown`/`keyup` handlers that lack an `e.isComposing` guard and reports them with a suggestion to use the form's `submit` event or add an `e.isComposing` guard. Non-Enter key checks are not flagged by this rule.
+
+See the [full rule documentation](https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-submit.md) for options, JSX support, and Safari handling.
 
 #### Detected patterns
 
-- `element.addEventListener('keydown' \| 'keyup', handler)` where handler checks a key property (`e.key`, `e.code`, `e.keyCode`, `e.which`) **without** an `e.isComposing` guard or a modifier key condition (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`)
+- `element.addEventListener('keydown' | 'keyup', handler)` where the handler checks `e.key === 'Enter'` (or `e.keyCode === 13`, `e.code === 'Enter'`) **without** an `e.isComposing` guard or modifier key condition
+- `element.addEventListener('keypress', handler)` with an Enter check — always flagged (`keypress` is deprecated)
+- `element.onkeydown` / `element.onkeyup` / `element.onkeypress` assignments with Enter checks
+- JSX `onKeyDown` / `onKeyUp` / `onKeyPress` props on IME-capable elements with Enter checks
+
+### require-ime-safe-key-events
+
+Detects any key check in `keydown`/`keyup` handlers that lack an `e.isComposing` guard, covering all keys including Enter. Use this rule **instead of** `require-ime-safe-submit` when you want full coverage — enabling both simultaneously produces duplicate reports for Enter key checks.
+
+See the [full rule documentation](https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-key-events.md) for options, JSX support, and Safari handling.
+
+#### Detected patterns
+
+- `element.addEventListener('keydown' | 'keyup', handler)` where the handler checks any key property (`e.key`, `e.code`, `e.keyCode`, `e.which`) **without** an `e.isComposing` guard or modifier key condition
 - `element.addEventListener('keypress', handler)` with key checks — always flagged (`keypress` is deprecated)
 - `element.onkeydown` / `element.onkeyup` / `element.onkeypress` assignments
-- JSX `onKeyDown` / `onKeyUp` / `onKeyPress` props
+- JSX `onKeyDown` / `onKeyUp` / `onKeyPress` props on IME-capable elements
 - `switch(e.key) { case 'Escape': ... }` and equivalents using `e.code`, `e.keyCode`, or `e.which`
 
 ## Development
@@ -218,17 +222,18 @@ src/
   index.ts              # Plugin entry point
   version.ts            # Auto-generated from package.json and committed
   rules/
-    require-ime-safe-key-events.ts
+    key-event-rule.ts   # Shared rule factory (makeRuleCreate)
     require-ime-safe-submit.ts
+    require-ime-safe-key-events.ts
 scripts/
   sync-version.mjs      # Syncs src/version.ts from package.json
 tests/
-  require-ime-safe-key-events.test.ts
   require-ime-safe-submit.test.ts
+  require-ime-safe-key-events.test.ts
 docs/
   rules/
-    require-ime-safe-key-events.md
     require-ime-safe-submit.md
+    require-ime-safe-key-events.md
 dist/                   # Built output (generated by npm run build)
 ```
 
