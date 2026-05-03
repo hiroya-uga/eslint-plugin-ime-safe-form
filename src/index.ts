@@ -1,4 +1,5 @@
 import type { ESLint, Linter } from 'eslint';
+import requireImeSafeKeyEvents from './rules/require-ime-safe-key-events';
 import requireImeSafeSubmit from './rules/require-ime-safe-submit';
 import { VERSION } from './version';
 
@@ -8,6 +9,7 @@ const plugin = {
     version: VERSION,
   },
   rules: {
+    'require-ime-safe-key-events': requireImeSafeKeyEvents,
     'require-ime-safe-submit': requireImeSafeSubmit,
   },
   configs: {} as Record<string, Linter.Config>,

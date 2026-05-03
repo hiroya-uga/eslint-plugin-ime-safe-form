@@ -3,7 +3,8 @@
 ## Project Overview
 
 **Package name:** `eslint-plugin-ime-safe-form`
-**Rule:** `ime-safe-form/require-ime-safe-submit`
+**Rule:** `ime-safe-form/require-ime-safe-key-events` (canonical name since 1.4.0)
+**Deprecated alias:** `ime-safe-form/require-ime-safe-submit` (1.x — kept for backward compatibility)
 
 An ESLint plugin that prevents accidental form submission during IME (Input Method Editor) composition. Users typing with an IME use it to input characters. Pressing Enter to confirm an IME candidate fires `keydown` _before_ `compositionend`, which causes form submission mid-input if the handler blindly checks `e.key === 'Enter'`.
 
@@ -31,7 +32,7 @@ The two correct alternatives enforced by the rule:
 
 ## Rule Logic
 
-The rule is in [src/rules/require-ime-safe-submit.ts](src/rules/require-ime-safe-submit.ts).
+The rule implementation is in [src/rules/require-ime-safe-key-events.ts](src/rules/require-ime-safe-key-events.ts). The deprecated alias `require-ime-safe-submit` is in [src/rules/require-ime-safe-submit.ts](src/rules/require-ime-safe-submit.ts) and re-exports the same implementation with `deprecated: DeprecatedInfo`.
 
 ### What triggers a report
 

@@ -1,11 +1,10 @@
-# require-ime-safe-submit (deprecated)
-
-> [!WARNING]
-> `require-ime-safe-submit` is deprecated. Use [`require-ime-safe-key-events`](./require-ime-safe-key-events.md) instead.
-> Do not enable both rules simultaneously — they share the same implementation and will produce duplicate reports.
-> In 1.x, `imeSafeForm.configs.recommended` still enables this alias for compatibility. If you want to use the new rule name now, configure `require-ime-safe-key-events` manually and leave this alias disabled.
+# require-ime-safe-key-events
 
 Disallow IME-unsafe key event handlers. Require an `e.isComposing` guard in `keydown`/`keyup` handlers with key checks, and prohibit `keypress` entirely.
+
+> [!NOTE]
+> The old rule name `require-ime-safe-submit` is a deprecated alias for this rule. Do not enable both simultaneously — they share the same implementation and will produce duplicate reports.
+> In 1.x, `imeSafeForm.configs.recommended` still enables `require-ime-safe-submit` for compatibility. If you want to use `require-ime-safe-key-events` now, configure it manually instead of spreading `configs.recommended`.
 
 ## Rule Details
 
@@ -22,7 +21,7 @@ This rule requires one of three correct approaches:
 ### Examples of **incorrect** code
 
 ```js
-/* eslint ime-safe-form/require-ime-safe-submit: "warn" */
+/* eslint ime-safe-form/require-ime-safe-key-events: "warn" */
 
 // No isComposing guard — breaks IME input
 input.addEventListener('keydown', (e) => {
@@ -104,7 +103,7 @@ input.addEventListener('keydown', (e) => {
 ### Examples of **correct** code
 
 ```js
-/* eslint ime-safe-form/require-ime-safe-submit: "warn" */
+/* eslint ime-safe-form/require-ime-safe-key-events: "warn" */
 
 // ✅ Option 1: use the form's submit event (fires after composition ends — no guard needed)
 form.addEventListener('submit', (e) => {
@@ -238,11 +237,13 @@ If your codebase extracts the `isComposing` check into a shared helper, list tho
 
 ```js
 // eslint.config.js
+import imeSafeForm from 'eslint-plugin-ime-safe-form';
+
 export default [
   {
-    ...imeSafeForm.configs.recommended,
+    plugins: { 'ime-safe-form': imeSafeForm },
     rules: {
-      'ime-safe-form/require-ime-safe-submit': ['warn', {
+      'ime-safe-form/require-ime-safe-key-events': ['warn', {
         guardFunctions: ['guardIsComposing'],
       }],
     },
@@ -289,11 +290,13 @@ Controls how PascalCase components and dot-notation components (e.g. `<MyInput>`
 
 ```js
 // eslint.config.js
+import imeSafeForm from 'eslint-plugin-ime-safe-form';
+
 export default [
   {
-    ...imeSafeForm.configs.recommended,
+    plugins: { 'ime-safe-form': imeSafeForm },
     rules: {
-      'ime-safe-form/require-ime-safe-submit': ['warn', {
+      'ime-safe-form/require-ime-safe-key-events': ['warn', {
         jsxComponents: {
           // Check all PascalCase components except known non-IME-capable ones (default behavior)
           allowComponents: ['ComboBox', 'NavigationMenu', 'UI.Input'],
@@ -307,7 +310,7 @@ export default [
 ```js
 // Opt out of checking all PascalCase components, then explicitly check specific ones
 rules: {
-  'ime-safe-form/require-ime-safe-submit': ['warn', {
+  'ime-safe-form/require-ime-safe-key-events': ['warn', {
     jsxComponents: {
       default: 'ignore',
       disallowComponents: ['MyTextInput', 'Form.TextArea'],
@@ -338,7 +341,7 @@ Controls how custom elements (lowercase hyphenated names such as `<sl-input>`, `
 ```js
 // Opt into checking all custom elements
 rules: {
-  'ime-safe-form/require-ime-safe-submit': ['warn', {
+  'ime-safe-form/require-ime-safe-key-events': ['warn', {
     customElements: {
       default: 'check',
     },
@@ -349,7 +352,7 @@ rules: {
 ```js
 // Flag only specific known text-input web components
 rules: {
-  'ime-safe-form/require-ime-safe-submit': ['warn', {
+  'ime-safe-form/require-ime-safe-key-events': ['warn', {
     customElements: {
       disallowElements: ['sl-input', 'md-filled-text-field'],
     },
@@ -379,11 +382,13 @@ Dot-notation components (e.g. `<UI.Input>`, `<Form.Field>`) are also supported �
 
 ```js
 // eslint.config.js (deprecated — prefer jsxComponents.allowComponents)
+import imeSafeForm from 'eslint-plugin-ime-safe-form';
+
 export default [
   {
-    ...imeSafeForm.configs.recommended,
+    plugins: { 'ime-safe-form': imeSafeForm },
     rules: {
-      'ime-safe-form/require-ime-safe-submit': ['warn', {
+      'ime-safe-form/require-ime-safe-key-events': ['warn', {
         allowComponents: ['ComboBox', 'NavigationMenu', 'UI.Input'],
       }],
     },
@@ -400,11 +405,13 @@ In Safari, `compositionend` fires **before** the final `keydown`, so `e.isCompos
 
 ```js
 // eslint.config.js
+import imeSafeForm from 'eslint-plugin-ime-safe-form';
+
 export default [
   {
-    ...imeSafeForm.configs.recommended,
+    plugins: { 'ime-safe-form': imeSafeForm },
     rules: {
-      "ime-safe-form/require-ime-safe-submit": ["warn", { checkKeyCodeForSafari: true }],
+      "ime-safe-form/require-ime-safe-key-events": ["warn", { checkKeyCodeForSafari: true }],
     },
   },
 ];
@@ -460,7 +467,7 @@ input.addEventListener('keydown', (e) => {
 If your application intentionally intercepts keys during IME composition (rare), you can disable this rule inline:
 
 ```js
-// eslint-disable-next-line ime-safe-form/require-ime-safe-submit
+// eslint-disable-next-line ime-safe-form/require-ime-safe-key-events
 input.addEventListener('keydown', handler);
 ```
 
