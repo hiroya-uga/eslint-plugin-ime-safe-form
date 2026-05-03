@@ -689,6 +689,23 @@ export const containsKeyCheckOutsideIsComposingGuard = ({
     visited: new Set<object>(),
   });
 
+export const containsEnterKeyCheckOutsideIsComposingGuard = ({
+  node,
+  eventParamName,
+  guardFunctions = [],
+}: {
+  node: Node | null | undefined;
+  eventParamName: string | undefined;
+  guardFunctions?: string[];
+}): boolean =>
+  traverseForUncoveredKeyCheck({
+    node,
+    eventParamName,
+    isKeyCheckNode: makeIsEnterKeyNode(eventParamName),
+    guardFunctions,
+    visited: new Set<object>(),
+  });
+
 const MODIFIER_KEY_PROPS = ['ctrlKey', 'metaKey', 'shiftKey', 'altKey'] as const;
 
 const andChainHasKeyWithModifier = ({

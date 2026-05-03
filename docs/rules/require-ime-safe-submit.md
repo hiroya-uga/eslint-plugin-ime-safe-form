@@ -1,23 +1,23 @@
-# require-ime-safe-submit (deprecated)
+# require-ime-safe-submit
 
-> [!WARNING]
-> `require-ime-safe-submit` is deprecated. Use [`require-ime-safe-key-events`](./require-ime-safe-key-events.md) instead.
-> Do not enable both rules simultaneously — they share the same implementation and will produce duplicate reports.
-> In 1.x, `imeSafeForm.configs.recommended` still enables this alias for compatibility. If you want to use the new rule name now, configure `require-ime-safe-key-events` manually and leave this alias disabled.
+Disallow IME-unsafe Enter key event handlers. Require an `e.isComposing` guard in `keydown`/`keyup` handlers with Enter key checks, or use the form's `submit` event instead.
 
-Disallow IME-unsafe key event handlers. Require an `e.isComposing` guard in `keydown`/`keyup` handlers with key checks, and prohibit `keypress` entirely.
+> [!NOTE]
+> If you need to guard key events beyond Enter (such as `Escape` or arrow keys), use [`require-ime-safe-key-events`](./require-ime-safe-key-events.md) instead.
 
 ## Rule Details
 
-When a `keydown` or `keyup` handler checks a key property (`e.key`, `e.code`, `e.keyCode`, `e.which`) without guarding against IME composition, users typing with an IME experience broken input. For example, pressing Enter to confirm IME candidates fires `keydown` before `compositionend`, and pressing Escape to cancel IME input fires `keydown` while `e.isComposing` is still `true` — both can trigger unintended side effects.
+When a `keydown` or `keyup` handler checks for the Enter key without guarding against IME composition, users typing with an IME experience broken input. Pressing Enter to confirm IME candidates fires `keydown` before `compositionend`, which triggers the handler mid-composition.
+
+Non-Enter key checks (e.g. `e.key === 'Escape'`) are not flagged by this rule. Use [`require-ime-safe-key-events`](./require-ime-safe-key-events.md) to cover those cases.
 
 This rule requires one of three correct approaches:
 
 1. **Form `submit` event** — fires only after composition completes; no guard needed
-2. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside the key check, IME composition cannot be active; no guard is needed
+2. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside the Enter check, IME composition cannot be active; no guard is needed
 3. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
 
-`keypress` is prohibited entirely because it is deprecated. Use `keydown` with an `e.isComposing` guard instead.
+`keypress` is prohibited entirely because it is deprecated. Use the form's `submit` event, or use `keydown` with an `e.isComposing` guard instead.
 
 ### Examples of **incorrect** code
 
@@ -40,7 +40,7 @@ input.addEventListener('keydown', (e) => {
   if (e.code === 'Enter') submit();
 });
 
-// switch statement
+// switch statement with Enter case
 input.addEventListener('keydown', (e) => {
   switch (e.key) {
     case 'Enter': submit(); break;
@@ -52,20 +52,10 @@ input.addEventListener('keydown', (e) => {
   if (e.keyCode === 13) submit();
 });
 
-// onkeydown / onkeyup assignment
+// onkeydown assignment
 input.onkeydown = (e) => {
   if (e.key === 'Enter') submit();
 };
-
-// Non-Enter key checks have the same IME race condition
-input.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeDialog(); // fires during IME composition — Escape cancels the candidate
-});
-input.addEventListener('keydown', (e) => {
-  switch (e.key) {
-    case 'ArrowDown': navigate(); break; // fires during IME candidate navigation
-  }
-});
 
 // keypress — always prohibited (deprecated event)
 input.addEventListener('keypress', (e) => {
@@ -140,16 +130,15 @@ input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') submit();
 });
 
-// ✅ Non-Enter key with isComposing guard
-input.addEventListener('keydown', (e) => {
-  if (e.isComposing || e.keyCode === 229) return;
-  if (e.key === 'Escape') closeDialog();
-});
-
 // ✅ e.isComposing alone — when checkKeyCodeForSafari: false is set
 input.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
   if (e.key === 'Enter') submit();
+});
+
+// ✅ Non-Enter key checks are not flagged by this rule
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDialog();
 });
 ```
 
@@ -165,24 +154,23 @@ input.addEventListener('keydown', (e) => {
   ...
 </form>
 
-// ✅ JSX — non-IME-capable element; no guard needed (key checks on div/button do not affect IME input)
-<div onKeyDown={(e) => { if (e.key === 'Escape') closeDialog(); }} />
-<button onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
+// ✅ JSX — non-IME-capable element; no guard needed (Enter checks on div/button do not affect IME input)
+<div onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
 ```
 
 ## Detected Patterns
 
 | Pattern | Example |
 |---|---|
-| `addEventListener('keydown' \| 'keyup', handler)` | `el.addEventListener('keydown', e => { if (e.key === '…') … })` |
-| `addEventListener('keypress', handler)` | Always flagged (deprecated event) |
-| `onkeydown` / `onkeyup` / `onkeypress` property assignment | `el.onkeydown = e => { if (e.key === '…') … }` |
-| JSX `onKeyDown` / `onKeyUp` prop on IME-capable elements | `<input onKeyDown={e => { if (e.key === '…') … }} />` |
-| JSX `onkeydown` / `onkeyup` prop on IME-capable elements | `<input onkeydown={e => { if (e.key === '…') … }} />` |
-| JSX `onKeyPress` / `onkeypress` prop | Always flagged (deprecated event) |
-| `e.key` / `e.code` comparison (any value) | `if (e.key === 'Enter') …` / `if (e.key !== 'Escape') return` |
-| Legacy `e.keyCode` / `e.which` comparison (any value) | `if (e.keyCode === 13) …` / `if (e.keyCode !== 13) return` |
-| `switch` on `e.key` / `e.code` / `e.keyCode` / `e.which` | `switch(e.key) { case 'Enter': … }` |
+| `addEventListener('keydown' \| 'keyup', handler)` with Enter check | `el.addEventListener('keydown', e => { if (e.key === 'Enter') … })` |
+| `addEventListener('keypress', handler)` with Enter check | Always flagged (deprecated event) |
+| `onkeydown` / `onkeyup` / `onkeypress` property assignment with Enter check | `el.onkeydown = e => { if (e.key === 'Enter') … }` |
+| JSX `onKeyDown` / `onKeyUp` prop on IME-capable elements with Enter check | `<input onKeyDown={e => { if (e.key === 'Enter') … }} />` |
+| JSX `onkeydown` / `onkeyup` prop on IME-capable elements with Enter check | `<input onkeydown={e => { if (e.key === 'Enter') … }} />` |
+| JSX `onKeyPress` / `onkeypress` prop with Enter check | Always flagged (deprecated event) |
+| `e.key` / `e.code` comparison to `'Enter'` | `if (e.key === 'Enter') …` / `if (e.key !== 'Enter') return` |
+| Legacy `e.keyCode` / `e.which` comparison to `13` | `if (e.keyCode === 13) …` / `if (e.keyCode !== 13) return` |
+| `switch` on `e.key` / `e.code` / `e.keyCode` / `e.which` with `'Enter'` / `13` case | `switch(e.key) { case 'Enter': … }` |
 
 ### IME-capable elements (JSX only)
 
@@ -201,14 +189,15 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, 
 
 | Pattern | Reason |
 |---|---|
+| Non-Enter key checks (`e.key === 'Escape'`, `e.key === 'ArrowDown'`, etc.) | This rule is Enter-key specific — use [`require-ime-safe-key-events`](./require-ime-safe-key-events.md) for other keys |
 | `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
 | `!e.isComposing && e.keyCode !== 229` in blocking position (inline or wrapping) | De Morgan equivalent of the combined guard — the Enter key check must be inside the condition or its consequent body |
 | `e.nativeEvent.isComposing \|\| e.nativeEvent.keyCode === 229` (React synthetic event) | React wraps the native event; `nativeEvent.isComposing` is equivalent to the native property |
 | `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
 | `if (guardFn(e)) return;` (with `guardFunctions` option) | Guard function declared as an IME-safe guard; must appear before the key check it guards (and be first when nested inside a key-check if-body) |
-| Key check combined with a modifier via `&&` (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`) | IME cannot be composing while a modifier key is held |
-| Outer `if` whose test is a positive modifier expression, key check inside the body | Same reasoning — modifier held means no IME composition |
-| Key check inside a nested function | Out of scope for the keydown handler |
+| Enter check combined with a modifier via `&&` (`e.ctrlKey`, `e.metaKey`, `e.shiftKey`, `e.altKey`) | IME cannot be composing while a modifier key is held |
+| Outer `if` whose test is a positive modifier expression, Enter check inside the body | Same reasoning — modifier held means no IME composition |
+| Enter check inside a nested function | Out of scope for the keydown handler |
 | Named function reference (`addEventListener('keydown', fn)`) | Cannot statically analyze external function bodies |
 | JSX key check on non-IME-capable element (`<div>`, `<button>`, etc.) | Element cannot receive IME input |
 
@@ -318,8 +307,8 @@ rules: {
 
 ```jsx
 // ✅ Exempted — no warning even without an isComposing guard
-<ComboBox onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
-<UI.Input onKeyDown={(e) => { if (e.key === 'ArrowDown') navigate(); }} />
+<ComboBox onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+<UI.Input onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
 ```
 
 > [!NOTE]
@@ -450,14 +439,11 @@ input.addEventListener('keydown', (e) => {
 > The De Morgan form is only recognized when the Enter key check is **inside** the `if (!e.isComposing && e.keyCode !== 229)` block (wrapping) or is part of the same condition (inline). A `!e.isComposing && e.keyCode !== 229` guard that protects a different key branch (e.g. Escape) does not cover a separate Enter check.
 
 > [!NOTE]
-> The `keyCode === 229` requirement only applies when an Enter key check is present. Non-Enter key checks (e.g. `e.key === 'Escape'`) are not subject to this additional requirement, because the Safari event-order issue is specific to Enter confirming IME candidates.
-
-> [!NOTE]
 > `e.keyCode` is deprecated but remains the only reliable way to detect IME composition in Safari's event order up to and including Safari 16 (WebKit). Versions from Safari 16.4 onward have partially fixed this, but the behaviour is inconsistent across platforms. Set `checkKeyCodeForSafari: false` if Safari support is not a concern — `e.isComposing` alone will then be accepted.
 
 ## When Not to Use
 
-If your application intentionally intercepts keys during IME composition (rare), you can disable this rule inline:
+If your application intentionally intercepts Enter key during IME composition (rare), you can disable this rule inline:
 
 ```js
 // eslint-disable-next-line ime-safe-form/require-ime-safe-submit

@@ -3,18 +3,16 @@
 Disallow IME-unsafe key event handlers. Require an `e.isComposing` guard in `keydown`/`keyup` handlers with key checks, and prohibit `keypress` entirely.
 
 > [!NOTE]
-> The old rule name `require-ime-safe-submit` is a deprecated alias for this rule. Do not enable both simultaneously — they share the same implementation and will produce duplicate reports.
-> In 1.x, `imeSafeForm.configs.recommended` still enables `require-ime-safe-submit` for compatibility. If you want to use `require-ime-safe-key-events` now, configure it manually instead of spreading `configs.recommended`.
+> If your main concern is Enter-driven form submission, use [`require-ime-safe-submit`](./require-ime-safe-submit.md) instead. That rule is Enter-key specific and also accepts the form's `submit` event as an alternative fix.
 
 ## Rule Details
 
 When a `keydown` or `keyup` handler checks a key property (`e.key`, `e.code`, `e.keyCode`, `e.which`) without guarding against IME composition, users typing with an IME experience broken input. For example, pressing Enter to confirm IME candidates fires `keydown` before `compositionend`, and pressing Escape to cancel IME input fires `keydown` while `e.isComposing` is still `true` — both can trigger unintended side effects.
 
-This rule requires one of three correct approaches:
+This rule requires one of two correct approaches:
 
-1. **Form `submit` event** — fires only after composition completes; no guard needed
-2. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside the key check, IME composition cannot be active; no guard is needed
-3. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
+1. **Modifier key condition** — when a modifier key (`Ctrl`, `Meta`, `Shift`, `Alt`) is required alongside the key check, IME composition cannot be active; no guard is needed
+2. **`e.isComposing` guard** — skip the handler body while IME composition is in progress
 
 `keypress` is prohibited entirely because it is deprecated. Use `keydown` with an `e.isComposing` guard instead.
 
@@ -105,13 +103,7 @@ input.addEventListener('keydown', (e) => {
 ```js
 /* eslint ime-safe-form/require-ime-safe-key-events: "warn" */
 
-// ✅ Option 1: use the form's submit event (fires after composition ends — no guard needed)
-form.addEventListener('submit', (e) => {
-  e.preventDefault();
-  submit();
-});
-
-// ✅ Option 2: modifier key — IME cannot be composing when Ctrl/Meta/Shift/Alt is held
+// ✅ Option 1: modifier key — IME cannot be composing when Ctrl/Meta/Shift/Alt is held
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.ctrlKey) submit();
 });
@@ -133,7 +125,7 @@ input.addEventListener('keydown', (e) => {
   }
 });
 
-// ✅ Option 3: e.isComposing + e.keyCode === 229 guard (covers Safari)
+// ✅ Option 2: e.isComposing + e.keyCode === 229 guard (covers Safari)
 input.addEventListener('keydown', (e) => {
   if (e.isComposing || e.keyCode === 229) return;
   if (e.key === 'Enter') submit();
@@ -158,11 +150,6 @@ input.addEventListener('keydown', (e) => {
 
 // ✅ React synthetic event — e.nativeEvent.isComposing works identically
 <input onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return; if (e.nativeEvent.key === 'Enter') submitForm(); }} />
-
-// ✅ JSX — onSubmit is correct
-<form onSubmit={(e) => { e.preventDefault(); submitForm(); }}>
-  ...
-</form>
 
 // ✅ JSX — non-IME-capable element; no guard needed (key checks on div/button do not affect IME input)
 <div onKeyDown={(e) => { if (e.key === 'Escape') closeDialog(); }} />
@@ -201,7 +188,7 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, 
 | Pattern | Reason |
 |---|---|
 | `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
-| `!e.isComposing && e.keyCode !== 229` in blocking position (inline or wrapping) | De Morgan equivalent of the combined guard — the Enter key check must be inside the condition or its consequent body |
+| `!e.isComposing && e.keyCode !== 229` in blocking position (inline or wrapping) | De Morgan equivalent of the combined guard — the guarded key check must be inside the condition or its consequent body |
 | `e.nativeEvent.isComposing \|\| e.nativeEvent.keyCode === 229` (React synthetic event) | React wraps the native event; `nativeEvent.isComposing` is equivalent to the native property |
 | `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
 | `if (guardFn(e)) return;` (with `guardFunctions` option) | Guard function declared as an IME-safe guard; must appear before the key check it guards (and be first when nested inside a key-check if-body) |
@@ -475,5 +462,4 @@ input.addEventListener('keydown', handler);
 
 - [MDN — compositionend event](https://developer.mozilla.org/en-US/docs/Web/API/Element/compositionend_event)
 - [MDN — KeyboardEvent.isComposing](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/isComposing)
-- [MDN — HTMLFormElement: submit event](https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/submit_event)
 - [MDN — keypress event (deprecated)](https://developer.mozilla.org/en-US/docs/Web/API/Element/keypress_event)
