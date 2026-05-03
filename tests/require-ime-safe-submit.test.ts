@@ -443,6 +443,41 @@ tester.run('require-ime-safe-submit', rule, {
     {
       code: `input.addEventListener('keydown', (e) => { if (e.target.key === 'Enter') doSomething(); });`,
     },
+    // ── TASK-016: !e.isComposing && e.keyCode !== 229 — De Morgan equivalent of the Safari guard ──
+    // Wrapping pattern: key check inside the compound blocking condition → safe including Safari
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.keyCode !== 229) { if (e.key === 'Enter') submit(); } });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.keyCode !== 229 && !e.isComposing) { if (e.key === 'Enter') submit(); } });`,
+    },
+    // Inline pattern: key check is part of the compound condition itself
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.keyCode !== 229 && e.key === 'Enter') submit(); });`,
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (e.keyCode !== 229 && !e.isComposing && e.key === 'Enter') submit(); });`,
+    },
+    // onkeydown assignment
+    {
+      code: `input.onkeydown = (e) => { if (!e.isComposing && e.keyCode !== 229) { if (e.key === 'Enter') submit(); } };`,
+    },
+    // JSX
+    {
+      code: `<input onKeyDown={(e) => { if (!e.isComposing && e.keyCode !== 229) { if (e.key === 'Enter') submit(); } }} />;`,
+    },
+    {
+      code: `<input onKeyDown={(e) => { if (!e.isComposing && e.keyCode !== 229 && e.key === 'Enter') submit(); }} />;`,
+    },
+    // With checkKeyCodeForSafari: true explicit
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.keyCode !== 229) { if (e.key === 'Enter') submit(); } });`,
+      options: [{ checkKeyCodeForSafari: true }],
+    },
+    // Loose inequality (!= instead of !==) also recognized
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.keyCode != 229) { if (e.key === 'Enter') submit(); } });`,
+    },
   ],
 
   invalid: [
@@ -1209,6 +1244,24 @@ tester.run('require-ime-safe-submit', rule, {
       code: `input.addEventListener('keydown', (e) => { if (guardIsComposing(e, state)) return; if (e.key === 'Enter') submit(); });`,
       options: [{ guardFunctions: ["guardIsComposing"] }],
       errors: [{ messageId: "requireImeSafeSubmit", data: { eventName: "keydown" } }],
+    },
+    // ── TASK-016: reversed pure guard with e.keyCode !== 229 — still unsafe ─────
+    // The guard exits when NOT composing; the key check runs while composing.
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.keyCode !== 229) return; if (e.key === 'Enter') submit(); });`,
+      options: [{ checkKeyCodeForSafari: false }],
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.keyCode !== 229) return; if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireImeSafeSubmit', data: { eventName: 'keydown' } }],
+    },
+    // ── TASK-016: De Morgan guard on a different key does NOT cover the Enter check ──
+    // The !isComposing && keyCode !== 229 guard applies only to the Escape branch.
+    // The Enter branch has only an isComposing-only guard, which misses Safari.
+    {
+      code: `input.addEventListener('keydown', (e) => { if (!e.isComposing && e.keyCode !== 229 && e.key === 'Escape') close(); if (e.isComposing) return; if (e.key === 'Enter') submit(); });`,
+      errors: [{ messageId: 'requireKeyCode229' }],
     },
     // ── TASK-013: modifier key on unrelated object does not exempt Enter check ──
     {

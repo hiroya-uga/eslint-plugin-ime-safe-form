@@ -354,15 +354,60 @@ const makeIsKeyCode229BinaryExpression = (eventParamName: string | undefined) =>
   );
 };
 
+// Returns true when e.keyCode !== 229 (or 229 !== e.keyCode) appears in blocking
+// position within && chains. Blocking means: when keyCode === 229, the && expression
+// evaluates to false and the if-body is not entered.
+const isKeyCode229InBlockingPosition = ({ node, eventParamName }: { node: Node; eventParamName: string | undefined }): boolean => {
+  if (node.type === 'BinaryExpression') {
+    const { operator, left, right } = node;
+    if (operator !== '!==' && operator !== '!=') {
+      return false;
+    }
+    return (
+      (isMemberWithProp({ node: left, propName: 'keyCode', eventParamName }) && isLiteral({ node: right, value: 229 })) ||
+      (isMemberWithProp({ node: right, propName: 'keyCode', eventParamName }) && isLiteral({ node: left, value: 229 }))
+    );
+  }
+  if (node.type === 'LogicalExpression' && node.operator === '&&') {
+    return (
+      isKeyCode229InBlockingPosition({ node: node.left as Node, eventParamName }) ||
+      isKeyCode229InBlockingPosition({ node: node.right as Node, eventParamName })
+    );
+  }
+  return false;
+};
+
 export const hasKeyCode229Check = ({ node, eventParamName }: { node: Node | null | undefined; eventParamName: string | undefined }) => {
   const isKeyCode229BinaryExpression = makeIsKeyCode229BinaryExpression(eventParamName);
+  const isEnterKeyNode = makeIsEnterKeyNode(eventParamName);
   return walkAst({
-    predicate: (candidateNode) =>
-      candidateNode.type === 'IfStatement' &&
-      walkAst({
-        predicate: isKeyCode229BinaryExpression,
-        node: candidateNode.test,
-      }),
+    predicate: (candidateNode) => {
+      if (candidateNode.type !== 'IfStatement') {
+        return false;
+      }
+      const { test, consequent } = candidateNode;
+      // Standard form: test contains e.keyCode === 229 (or 229 === e.keyCode).
+      if (walkAst({ predicate: isKeyCode229BinaryExpression, node: test })) {
+        return true;
+      }
+      // Reversed De Morgan form: test contains both !e.isComposing and e.keyCode !== 229
+      // in blocking positions within && chains. This is the negation of
+      // (e.isComposing || e.keyCode === 229) and guards Safari IME equally well.
+      // IMPORTANT: only counts when the Enter key check is inside THIS IfStatement —
+      // in the test (inline) or the consequent (wrapping). A De Morgan guard on a
+      // different key (e.g. Escape) does NOT cover an Enter check that appears after
+      // a separate isComposing-only guard.
+      if (
+        isComposingInBlockingPosition({ node: test, eventParamName }) &&
+        isKeyCode229InBlockingPosition({ node: test, eventParamName })
+      ) {
+        return (
+          walkAst({ predicate: isEnterKeyNode, node: test }) ||
+          walkAst({ predicate: isEnterKeyNode, node: consequent })
+        );
+      }
+      return false;
+    },
     node,
   });
 };

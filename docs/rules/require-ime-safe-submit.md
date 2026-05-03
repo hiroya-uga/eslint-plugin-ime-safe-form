@@ -197,6 +197,7 @@ The JSX patterns (`onKeyDown`, `onKeyUp`, `onKeyPress`, `onkeydown`, `onkeyup`, 
 | Pattern | Reason |
 |---|---|
 | `e.isComposing \|\| e.keyCode === 229` guard in `keydown`/`keyup` | Default — covers both standard browsers and Safari |
+| `!e.isComposing && e.keyCode !== 229` in blocking position (inline or wrapping) | De Morgan equivalent of the combined guard — the Enter key check must be inside the condition or its consequent body |
 | `e.nativeEvent.isComposing \|\| e.nativeEvent.keyCode === 229` (React synthetic event) | React wraps the native event; `nativeEvent.isComposing` is equivalent to the native property |
 | `e.isComposing` guard alone (with `checkKeyCodeForSafari: false`) | Author opted out of Safari check |
 | `if (guardFn(e)) return;` (with `guardFunctions` option) | Guard function declared as an IME-safe guard; must appear before the key check it guards (and be first when nested inside a key-check if-body) |
@@ -390,7 +391,7 @@ export default [
 
 ### `checkKeyCodeForSafari` (default: `true`)
 
-In Safari, `compositionend` fires **before** the final `keydown`, so `e.isComposing` is already `false` when Enter is pressed to confirm IME. Setting this option to `true` additionally requires `e.keyCode === 229` alongside `e.isComposing`:
+In Safari, `compositionend` fires **before** the final `keydown`, so `e.isComposing` is already `false` when Enter is pressed to confirm IME. Setting this option to `true` requires a `keyCode === 229`-equivalent guard that covers this Safari case, in addition to the `isComposing` guard:
 
 ```js
 // eslint.config.js
@@ -404,13 +405,26 @@ export default [
 ];
 ```
 
-With `checkKeyCodeForSafari: true`, only the combined guard is accepted for Enter key checks:
+With `checkKeyCodeForSafari: true`, the guard for Enter key checks must cover Safari's event order. Two equivalent forms are accepted:
 
 ```js
-// ✅ Correct — covers both standard browsers and Safari
+// ✅ Standard form — e.isComposing || e.keyCode === 229 (pure early-exit guard)
 input.addEventListener('keydown', (e) => {
   if (e.isComposing || e.keyCode === 229) return;
   if (e.key === 'Enter') submit();
+});
+
+// ✅ De Morgan form — !e.isComposing && e.keyCode !== 229 in a wrapping condition
+//    (key check inside the if-body; equivalent to the standard form by De Morgan's law)
+input.addEventListener('keydown', (e) => {
+  if (!e.isComposing && e.keyCode !== 229) {
+    if (e.key === 'Enter') submit();
+  }
+});
+
+// ✅ De Morgan form — inline (key check is part of the same condition)
+input.addEventListener('keydown', (e) => {
+  if (!e.isComposing && e.keyCode !== 229 && e.key === 'Enter') submit();
 });
 
 // ❌ Flagged — e.isComposing alone misses Safari's event order
@@ -418,7 +432,17 @@ input.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
   if (e.key === 'Enter') submit();
 });
+
+// ❌ Flagged — reversed early-exit guard: exits when NOT composing,
+//    so the key check runs while IME is active
+input.addEventListener('keydown', (e) => {
+  if (!e.isComposing && e.keyCode !== 229) return;
+  if (e.key === 'Enter') submit();
+});
 ```
+
+> [!NOTE]
+> The De Morgan form is only recognized when the Enter key check is **inside** the `if (!e.isComposing && e.keyCode !== 229)` block (wrapping) or is part of the same condition (inline). A `!e.isComposing && e.keyCode !== 229` guard that protects a different key branch (e.g. Escape) does not cover a separate Enter check.
 
 > [!NOTE]
 > The `keyCode === 229` requirement only applies when an Enter key check is present. Non-Enter key checks (e.g. `e.key === 'Escape'`) are not subject to this additional requirement, because the Safari event-order issue is specific to Enter confirming IME candidates.
