@@ -1,5 +1,5 @@
 import { RuleTester } from 'eslint';
-import rule = require('../src/rules/require-ime-safe-submit');
+import rule from '../src/rules/require-ime-safe-submit';
 
 const tester = new RuleTester({
   languageOptions: { ecmaVersion: 2020, parserOptions: { ecmaFeatures: { jsx: true } } },
