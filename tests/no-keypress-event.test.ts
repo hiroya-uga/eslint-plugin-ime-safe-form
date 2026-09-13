@@ -1,5 +1,5 @@
 import { RuleTester } from 'eslint';
-import rule = require('../src/rules/no-keypress-event');
+import rule from '../src/rules/no-keypress-event';
 
 const tester = new RuleTester({
   languageOptions: { ecmaVersion: 2020, parserOptions: { ecmaFeatures: { jsx: true } } },

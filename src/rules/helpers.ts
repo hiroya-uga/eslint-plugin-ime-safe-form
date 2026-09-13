@@ -258,7 +258,7 @@ const isNonFunctionNode = (value: unknown): value is Node =>
  * Returns direct child AST nodes, skipping function boundaries and the
  * `parent` back-reference added by ESLint.
  */
-const getChildNodes = (node: Node) => {
+export const getChildNodes = (node: Node) => {
   const result: Node[] = [];
   for (const [key, value] of Object.entries(node)) {
     if (key === 'parent') {
@@ -412,7 +412,7 @@ export const hasKeyCode229Check = ({ node, eventParamName }: { node: Node | null
 // Returns true when the IfStatement's consequent directly contains a return or
 // throw — i.e., the branch unconditionally exits. Block bodies are accepted when
 // any top-level statement is a return/throw.
-const consequentHasEarlyExit = (ifNode: Node): boolean => {
+export const consequentHasEarlyExit = (ifNode: Node): boolean => {
   if (ifNode.type !== 'IfStatement') {
     return false;
   }
