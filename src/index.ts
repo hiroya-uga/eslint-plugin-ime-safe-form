@@ -1,5 +1,6 @@
 import type { ESLint, Linter } from 'eslint';
 import noKeypressEvent from './rules/no-keypress-event';
+import requireImeSafeInput from './rules/require-ime-safe-input';
 import requireImeSafeKeyEvents from './rules/require-ime-safe-key-events';
 import requireImeSafeSubmit from './rules/require-ime-safe-submit';
 import { VERSION } from './version';
@@ -11,6 +12,7 @@ const plugin = {
   },
   rules: {
     'no-keypress-event': noKeypressEvent,
+    'require-ime-safe-input': requireImeSafeInput,
     'require-ime-safe-key-events': requireImeSafeKeyEvents,
     'require-ime-safe-submit': requireImeSafeSubmit,
   },

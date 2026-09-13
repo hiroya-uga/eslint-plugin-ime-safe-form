@@ -1,0 +1,414 @@
+import type { Rule } from 'eslint';
+import type { BaseNode, Node } from 'estree';
+import { consequentHasEarlyExit, FUNCTION_TYPES, getChildNodes, isImeCapableJsxElement } from './helpers';
+import type { CustomElementsOption, JSXAttribute, JsxComponentsOption } from './helpers';
+
+const DOM_INPUT_EVENTS = new Set(['input', 'beforeinput']);
+const JSX_DOM_INPUT_EVENTS = new Set([
+  'onInput', 'onBeforeInput', 'onChange',
+  'oninput', 'onbeforeinput', 'onchange',
+]);
+
+type EventParam =
+  | { kind: 'identifier'; name: string }
+  | { kind: 'destructured'; targetValueNames: Set<string>; isComposingNames: Set<string> };
+
+const extractEventParam = (rawParam: unknown): EventParam | undefined => {
+  if (rawParam === null || rawParam === undefined) {
+    return undefined;
+  }
+  const firstParam = rawParam as Node;
+  const binding: Node =
+    firstParam.type === 'AssignmentPattern'
+      ? (firstParam as { type: 'AssignmentPattern'; left: Node }).left
+      : firstParam;
+
+  if (binding.type === 'Identifier') {
+    return { kind: 'identifier', name: binding.name };
+  }
+
+  if (binding.type !== 'ObjectPattern') {
+    return undefined;
+  }
+
+  const targetValueNames = new Set<string>();
+  const isComposingNames = new Set<string>();
+
+  for (const prop of binding.properties) {
+    if (prop.type === 'RestElement') {
+      continue;
+    }
+    if (prop.computed === true) {
+      continue;
+    }
+    if (prop.key.type !== 'Identifier') {
+      continue;
+    }
+    const keyName = prop.key.name;
+    const propValue = prop.value as Node;
+
+    let localName: string | undefined;
+    if (propValue.type === 'Identifier') {
+      localName = propValue.name;
+    } else if (propValue.type === 'AssignmentPattern') {
+      const assignLeft = (propValue as { type: 'AssignmentPattern'; left: Node }).left;
+      if (assignLeft.type === 'Identifier') {
+        localName = assignLeft.name;
+      }
+    }
+
+    if (localName === undefined) {
+      continue;
+    }
+    if (keyName === 'target' || keyName === 'currentTarget') {
+      targetValueNames.add(localName);
+    } else if (keyName === 'isComposing') {
+      isComposingNames.add(localName);
+    }
+  }
+
+  if (targetValueNames.size === 0 && isComposingNames.size === 0) {
+    return undefined;
+  }
+  return { kind: 'destructured', targetValueNames, isComposingNames };
+};
+
+const isIsComposingNode = ({ node, param }: { node: Node; param: EventParam }): boolean => {
+  // Optional chaining (`event?.isComposing`) wraps the MemberExpression in a
+  // ChainExpression; unwrap it once so the shape below still matches.
+  const target = node.type === 'ChainExpression' ? (node.expression as Node) : node;
+  if (param.kind === 'destructured') {
+    return target.type === 'Identifier' && param.isComposingNames.has(target.name);
+  }
+  if (target.type !== 'MemberExpression' || target.computed === true) {
+    return false;
+  }
+  if (target.property.type !== 'Identifier' || target.property.name !== 'isComposing') {
+    return false;
+  }
+  const root = target.object;
+  if (root.type === 'Identifier' && root.name === param.name) {
+    return true;
+  }
+  if (
+    root.type === 'MemberExpression' &&
+    root.computed === false &&
+    root.property.type === 'Identifier' &&
+    root.property.name === 'nativeEvent'
+  ) {
+    const rootRoot = root.object;
+    return rootRoot.type === 'Identifier' && rootRoot.name === param.name;
+  }
+  return false;
+};
+
+const composingGuaranteesExit = ({ node, param }: { node: Node; param: EventParam }): boolean => {
+  if (isIsComposingNode({ node, param })) {
+    return true;
+  }
+  if (node.type === 'LogicalExpression' && node.operator === '||') {
+    return (
+      composingGuaranteesExit({ node: node.left as Node, param }) ||
+      composingGuaranteesExit({ node: node.right as Node, param })
+    );
+  }
+  return false;
+};
+
+const composingBlocksEntry = ({ node, param }: { node: Node; param: EventParam }): boolean => {
+  if (node.type === 'UnaryExpression' && node.operator === '!') {
+    return isIsComposingNode({ node: node.argument as Node, param });
+  }
+  if (node.type === 'LogicalExpression' && node.operator === '&&') {
+    return (
+      composingBlocksEntry({ node: node.left as Node, param }) ||
+      composingBlocksEntry({ node: node.right as Node, param })
+    );
+  }
+  return false;
+};
+
+const isEventTargetValueLhs = ({ node, param }: { node: Node; param: EventParam }): boolean => {
+  if (node.type !== 'MemberExpression' || node.computed === true) {
+    return false;
+  }
+  if (node.property.type !== 'Identifier' || node.property.name !== 'value') {
+    return false;
+  }
+  const innerObj = node.object;
+  if (param.kind === 'destructured') {
+    return innerObj.type === 'Identifier' && param.targetValueNames.has(innerObj.name);
+  }
+  if (innerObj.type !== 'MemberExpression' || innerObj.computed === true) {
+    return false;
+  }
+  if (innerObj.property.type !== 'Identifier') {
+    return false;
+  }
+  const propName = innerObj.property.name;
+  if (propName !== 'target' && propName !== 'currentTarget') {
+    return false;
+  }
+  const rootNode = innerObj.object;
+  return rootNode.type === 'Identifier' && rootNode.name === param.name;
+};
+
+const isTargetValueWrite = ({ node, param }: { node: Node; param: EventParam }): boolean => {
+  if (node.type !== 'AssignmentExpression') {
+    return false;
+  }
+  return isEventTargetValueLhs({ node: node.left as Node, param });
+};
+
+// `if (isComposing) return;` (or an equivalent block ending in return/throw)
+// placed directly in a statement list makes every statement after it
+// unreachable while composing, so the caller can stop scanning at that point.
+const isComposingEarlyExitGuard = ({ node, param }: { node: Node; param: EventParam }) =>
+  node.type === 'IfStatement' &&
+  composingGuaranteesExit({ node: node.test as Node, param }) &&
+  consequentHasEarlyExit(node);
+
+// A bare `&&`/`||` used as a one-line guard outside of any `if` — e.g.
+// `!event.isComposing && (event.target.value = ...)` or
+// `event.isComposing || (event.target.value = ...)`. In both cases the right
+// operand only evaluates on the non-composing path, so it never needs to be
+// inspected — mirroring the IfStatement branches below.
+const isLogicalExpressionFullyGuarded = ({ node, param }: { node: Node; param: EventParam }) => {
+  if (node.type !== 'LogicalExpression') {
+    return false;
+  }
+  const leftOperand = node.left as Node;
+  if (node.operator === '&&') {
+    return composingBlocksEntry({ node: leftOperand, param });
+  }
+  if (node.operator === '||') {
+    return composingGuaranteesExit({ node: leftOperand, param });
+  }
+  return false;
+};
+
+// A `switch` case body (SwitchCase.consequent) is a sequential statement list just
+// like a BlockStatement's body, so a pure `if (isComposing) return;` guard placed
+// directly in a case must short-circuit the rest of that case the same way.
+const containsUnsafeWriteInStatementList = ({
+  statements,
+  param,
+  visited,
+}: {
+  statements: Node[];
+  param: EventParam;
+  visited: Set<object>;
+}): boolean => {
+  for (const stmt of statements) {
+    // Check stmt itself first: a wrong-direction guard like
+    // `if (isComposing) { write; return; }` must still have its own
+    // consequent inspected before the early-exit short-circuit below
+    // is allowed to declare the rest of the block safe.
+    if (containsValueWriteOutsideGuard({ node: stmt, param, visited })) {
+      return true;
+    }
+    if (isComposingEarlyExitGuard({ node: stmt, param })) {
+      return false;
+    }
+  }
+  return false;
+};
+
+const containsUnsafeWriteInIfStatement = ({
+  ifNode,
+  param,
+  visited,
+}: {
+  ifNode: Extract<Node, { type: 'IfStatement' }>;
+  param: EventParam;
+  visited: Set<object>;
+}): boolean => {
+  const testNode = ifNode.test as Node;
+  if (composingBlocksEntry({ node: testNode, param })) {
+    // !isComposing in test: consequent entered only when not composing → safe
+    return containsValueWriteOutsideGuard({ node: ifNode.alternate, param, visited });
+  }
+  if (composingGuaranteesExit({ node: testNode, param })) {
+    // isComposing in test: alternate entered only when not composing → safe
+    return containsValueWriteOutsideGuard({ node: ifNode.consequent, param, visited });
+  }
+  return (
+    containsValueWriteOutsideGuard({ node: ifNode.consequent, param, visited }) ||
+    containsValueWriteOutsideGuard({ node: ifNode.alternate, param, visited })
+  );
+};
+
+const containsValueWriteOutsideGuard = ({
+  node,
+  param,
+  visited,
+}: {
+  node: Node | null | undefined;
+  param: EventParam;
+  visited: Set<object>;
+}): boolean => {
+  if (node === null || node === undefined || typeof node !== 'object' || visited.has(node)) {
+    return false;
+  }
+  visited.add(node);
+
+  if (FUNCTION_TYPES.has(node.type)) {
+    return false;
+  }
+
+  if (node.type === 'BlockStatement' || node.type === 'SwitchCase') {
+    const statements = node.type === 'BlockStatement' ? node.body : node.consequent;
+    return containsUnsafeWriteInStatementList({ statements, param, visited });
+  }
+
+  if (node.type === 'IfStatement') {
+    return containsUnsafeWriteInIfStatement({ ifNode: node, param, visited });
+  }
+
+  if (isTargetValueWrite({ node, param })) {
+    return true;
+  }
+
+  if (isLogicalExpressionFullyGuarded({ node, param })) {
+    return false;
+  }
+
+  return getChildNodes(node).some((child) => containsValueWriteOutsideGuard({ node: child, param, visited }));
+};
+
+const DEFAULT_JSX_COMPONENTS: JsxComponentsOption = {
+  default: 'check',
+  allowComponents: [],
+  disallowComponents: [],
+};
+
+const DEFAULT_CUSTOM_ELEMENTS: CustomElementsOption = {
+  default: 'ignore',
+  allowElements: [],
+  disallowElements: [],
+};
+
+const checkHandler = ({
+  handlerNode,
+  reportNode,
+  eventName,
+  context,
+}: {
+  handlerNode: Node | null | undefined;
+  reportNode: BaseNode;
+  eventName: string;
+  context: Rule.RuleContext;
+}): void => {
+  if (handlerNode === null || handlerNode === undefined) {
+    return;
+  }
+  if (handlerNode.type !== 'ArrowFunctionExpression' && handlerNode.type !== 'FunctionExpression') {
+    return;
+  }
+  const param = extractEventParam(handlerNode.params[0]);
+  if (param === undefined) {
+    return;
+  }
+  if (containsValueWriteOutsideGuard({ node: handlerNode.body, param, visited: new Set() })) {
+    context.report({ node: reportNode, messageId: 'requireImeSafeInput', data: { eventName } });
+  }
+};
+
+const rule: Rule.RuleModule = {
+  meta: {
+    type: 'suggestion',
+    docs: {
+      description:
+        "Require IME-safe handling when rewriting input field values in 'input' or 'beforeinput' event handlers, or JSX 'onChange'.",
+      recommended: false,
+      url: 'https://github.com/hiroya-uga/eslint-plugin-ime-safe-form/blob/main/docs/rules/require-ime-safe-input.md',
+    },
+    messages: {
+      requireImeSafeInput:
+        "Rewriting 'event.target.value' in a '{{eventName}}' handler can disrupt IME composition. Add 'if (event.isComposing) return;' or move the formatting to 'blur' or 'compositionend'.",
+    },
+    schema: [],
+  },
+
+  create(context) {
+    return {
+      CallExpression(node) {
+        const { callee, arguments: args } = node;
+        const isAddEventListenerCall =
+          callee.type === 'MemberExpression' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'addEventListener' &&
+          args.length >= 2;
+
+        if (isAddEventListenerCall === false) {
+          return;
+        }
+
+        const eventArg = args[0];
+        if (eventArg === undefined) {
+          return;
+        }
+        if (
+          eventArg.type !== 'Literal' ||
+          typeof eventArg.value !== 'string' ||
+          DOM_INPUT_EVENTS.has(eventArg.value) === false
+        ) {
+          return;
+        }
+
+        checkHandler({ handlerNode: args[1], reportNode: node, eventName: eventArg.value, context });
+      },
+
+      AssignmentExpression(node) {
+        const { left, right } = node;
+
+        if (left.type !== 'MemberExpression' || left.computed === true || left.property.type !== 'Identifier') {
+          return;
+        }
+
+        const propName = left.property.name;
+        if (propName.startsWith('on') === false) {
+          return;
+        }
+        const eventName = propName.slice(2);
+        if (DOM_INPUT_EVENTS.has(eventName) === false) {
+          return;
+        }
+
+        checkHandler({ handlerNode: right, reportNode: left, eventName, context });
+      },
+
+      JSXAttribute(rawNode: unknown) {
+        const node = rawNode as JSXAttribute;
+
+        if (node.name.type !== 'JSXIdentifier' || JSX_DOM_INPUT_EVENTS.has(node.name.name) === false) {
+          return;
+        }
+
+        if (
+          isImeCapableJsxElement({
+            openingElement: node.parent,
+            jsxComponents: DEFAULT_JSX_COMPONENTS,
+            customElements: DEFAULT_CUSTOM_ELEMENTS,
+          }) === false
+        ) {
+          return;
+        }
+
+        const value = node.value;
+        if (value?.type !== 'JSXExpressionContainer') {
+          return;
+        }
+
+        checkHandler({
+          handlerNode: value.expression as Node | null | undefined,
+          reportNode: node.name,
+          eventName: node.name.name,
+          context,
+        });
+      },
+    };
+  },
+};
+
+export = rule;
