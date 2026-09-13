@@ -170,6 +170,23 @@ The JSX patterns are only checked on elements where IME input is possible, using
 - **Ternary `isComposing` guard is not recognized.** `IfStatement` tests and bare `&&`/`||` short-circuit guards are checked, but a ternary (`isComposing ? a : b`) is not, matching the other rules in this plugin.
 - **Comparison-style guards are not recognized.** `event.isComposing` is only matched as a direct reference (optionally combined with `||`/`&&`); a comparison like `if (event.isComposing === true) return;` is not detected as a guard and will be flagged as a false positive.
 - **Only the first function parameter is inspected**, and only a plain identifier or a top-level `ObjectPattern` destructure of `target`/`currentTarget`/`isComposing` (with optional renaming). Nested destructuring (e.g. `({ target: { value } }) => ...`) is not detected.
+- **A local variable that aliases `event.target` inside the handler body is not tracked**, so a write through it is invisible to this rule:
+
+  ```js
+  // NOT flagged, even with zero guard — target is a body-level local, not the parameter itself
+  input.addEventListener('input', (event) => {
+    const target = event.target;
+    target.value = target.value.trim();
+  });
+
+  // Same gap via a body-level destructure (as opposed to destructuring the parameter itself, which IS detected)
+  input.addEventListener('input', (event) => {
+    const { target } = event;
+    target.value = target.value.trim();
+  });
+  ```
+
+  Only `target`/`currentTarget`/`isComposing` bound directly in the parameter list (see the row above) are recognized; the rule does not perform data-flow/alias analysis on `VariableDeclaration`s inside the handler body.
 - **Computed member access is not recognized.** `event.target['value'] = ...` and `event['isComposing']` are not matched — only the dot-access form (`event.target.value`, `event.isComposing`) is detected, on both the write side and the guard side.
 - **No `guardFunctions` option.** Unlike `require-ime-safe-submit`/`require-ime-safe-key-events`, a shared guard helper extracted into its own function is not recognized here.
 

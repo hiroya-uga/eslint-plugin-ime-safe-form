@@ -160,6 +160,84 @@ const isTargetValueWrite = ({ node, param }: { node: Node; param: EventParam }):
   return isEventTargetValueLhs({ node: node.left as Node, param });
 };
 
+// `if (isComposing) return;` (or an equivalent block ending in return/throw)
+// placed directly in a statement list makes every statement after it
+// unreachable while composing, so the caller can stop scanning at that point.
+const isComposingEarlyExitGuard = ({ node, param }: { node: Node; param: EventParam }) =>
+  node.type === 'IfStatement' &&
+  composingGuaranteesExit({ node: node.test as Node, param }) &&
+  consequentHasEarlyExit(node);
+
+// A bare `&&`/`||` used as a one-line guard outside of any `if` — e.g.
+// `!event.isComposing && (event.target.value = ...)` or
+// `event.isComposing || (event.target.value = ...)`. In both cases the right
+// operand only evaluates on the non-composing path, so it never needs to be
+// inspected — mirroring the IfStatement branches below.
+const isLogicalExpressionFullyGuarded = ({ node, param }: { node: Node; param: EventParam }) => {
+  if (node.type !== 'LogicalExpression') {
+    return false;
+  }
+  const leftOperand = node.left as Node;
+  if (node.operator === '&&') {
+    return composingBlocksEntry({ node: leftOperand, param });
+  }
+  if (node.operator === '||') {
+    return composingGuaranteesExit({ node: leftOperand, param });
+  }
+  return false;
+};
+
+// A `switch` case body (SwitchCase.consequent) is a sequential statement list just
+// like a BlockStatement's body, so a pure `if (isComposing) return;` guard placed
+// directly in a case must short-circuit the rest of that case the same way.
+const containsUnsafeWriteInStatementList = ({
+  statements,
+  param,
+  visited,
+}: {
+  statements: Node[];
+  param: EventParam;
+  visited: Set<object>;
+}): boolean => {
+  for (const stmt of statements) {
+    // Check stmt itself first: a wrong-direction guard like
+    // `if (isComposing) { write; return; }` must still have its own
+    // consequent inspected before the early-exit short-circuit below
+    // is allowed to declare the rest of the block safe.
+    if (containsValueWriteOutsideGuard({ node: stmt, param, visited })) {
+      return true;
+    }
+    if (isComposingEarlyExitGuard({ node: stmt, param })) {
+      return false;
+    }
+  }
+  return false;
+};
+
+const containsUnsafeWriteInIfStatement = ({
+  ifNode,
+  param,
+  visited,
+}: {
+  ifNode: Extract<Node, { type: 'IfStatement' }>;
+  param: EventParam;
+  visited: Set<object>;
+}): boolean => {
+  const testNode = ifNode.test as Node;
+  if (composingBlocksEntry({ node: testNode, param })) {
+    // !isComposing in test: consequent entered only when not composing → safe
+    return containsValueWriteOutsideGuard({ node: ifNode.alternate, param, visited });
+  }
+  if (composingGuaranteesExit({ node: testNode, param })) {
+    // isComposing in test: alternate entered only when not composing → safe
+    return containsValueWriteOutsideGuard({ node: ifNode.consequent, param, visited });
+  }
+  return (
+    containsValueWriteOutsideGuard({ node: ifNode.consequent, param, visited }) ||
+    containsValueWriteOutsideGuard({ node: ifNode.alternate, param, visited })
+  );
+};
+
 const containsValueWriteOutsideGuard = ({
   node,
   param,
@@ -178,64 +256,21 @@ const containsValueWriteOutsideGuard = ({
     return false;
   }
 
-  // A `switch` case body (SwitchCase.consequent) is a sequential statement list just
-  // like a BlockStatement's body, so a pure `if (isComposing) return;` guard placed
-  // directly in a case must short-circuit the rest of that case the same way.
   if (node.type === 'BlockStatement' || node.type === 'SwitchCase') {
     const statements = node.type === 'BlockStatement' ? node.body : node.consequent;
-    for (const stmt of statements) {
-      // Check stmt itself first: a wrong-direction guard like
-      // `if (isComposing) { write; return; }` must still have its own
-      // consequent inspected before the early-exit short-circuit below
-      // is allowed to declare the rest of the block safe.
-      if (containsValueWriteOutsideGuard({ node: stmt, param, visited })) {
-        return true;
-      }
-      if (
-        stmt.type === 'IfStatement' &&
-        composingGuaranteesExit({ node: stmt.test as Node, param }) &&
-        consequentHasEarlyExit(stmt)
-      ) {
-        return false;
-      }
-    }
-    return false;
+    return containsUnsafeWriteInStatementList({ statements, param, visited });
   }
 
   if (node.type === 'IfStatement') {
-    const testNode = node.test as Node;
-    if (composingBlocksEntry({ node: testNode, param })) {
-      // !isComposing in test: consequent entered only when not composing → safe
-      return containsValueWriteOutsideGuard({ node: node.alternate, param, visited });
-    }
-    if (composingGuaranteesExit({ node: testNode, param })) {
-      // isComposing in test: alternate entered only when not composing → safe
-      return containsValueWriteOutsideGuard({ node: node.consequent, param, visited });
-    }
-    return (
-      containsValueWriteOutsideGuard({ node: node.consequent, param, visited }) ||
-      containsValueWriteOutsideGuard({ node: node.alternate, param, visited })
-    );
+    return containsUnsafeWriteInIfStatement({ ifNode: node, param, visited });
   }
 
   if (isTargetValueWrite({ node, param })) {
     return true;
   }
 
-  // Bare `&&`/`||` used as a one-line guard outside of any `if` — e.g.
-  // `!event.isComposing && (event.target.value = ...)` or
-  // `event.isComposing || (event.target.value = ...)`. The right operand
-  // only evaluates on the non-composing path, mirroring the IfStatement
-  // `composingBlocksEntry` / `composingGuaranteesExit` branches above, so
-  // it must be treated as safe the same way an `if` guard would be.
-  if (node.type === 'LogicalExpression') {
-    const leftOperand = node.left as Node;
-    if (node.operator === '&&' && composingBlocksEntry({ node: leftOperand, param })) {
-      return false;
-    }
-    if (node.operator === '||' && composingGuaranteesExit({ node: leftOperand, param })) {
-      return false;
-    }
+  if (isLogicalExpressionFullyGuarded({ node, param })) {
+    return false;
   }
 
   return getChildNodes(node).some((child) => containsValueWriteOutsideGuard({ node: child, param, visited }));
