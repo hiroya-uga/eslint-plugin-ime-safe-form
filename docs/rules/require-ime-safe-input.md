@@ -111,6 +111,14 @@ input.addEventListener('input', (event) => {
   event.target.value = event.target.value.trim();
 });
 
+// Bare `&&`/`||` short-circuit used as a one-line guard (no `if`)
+input.addEventListener('input', (event) => {
+  !event.isComposing && (event.target.value = event.target.value.trim());
+});
+input.addEventListener('input', (event) => {
+  event.isComposing || (event.target.value = event.target.value.trim());
+});
+
 // Recommended alternative: move formatting off the input event entirely
 input.addEventListener('compositionend', (event) => {
   event.target.value = format(event.target.value);
@@ -150,6 +158,7 @@ The JSX patterns are only checked on elements where IME input is possible, using
 | `blur` / `compositionend` handlers | Fire after composition ends; recommended alternative, out of scope entirely |
 | `if (event.isComposing) { ... } else { write }` | The write only executes on the non-composing branch |
 | `e.isComposing` guard placed after the value write | Does not protect a write that already ran |
+| Bare `!isComposing && write` / `isComposing || write` (no `if`) | Same short-circuit semantics as the `if`-guarded forms |
 | `e.nativeEvent.isComposing` (React synthetic event) | Equivalent IME guard |
 | Value write inside a nested function | Out of scope for the original handler (function boundary) |
 | Named function reference (`addEventListener('input', fn)`) | Cannot statically analyze external function bodies |
@@ -158,8 +167,10 @@ The JSX patterns are only checked on elements where IME input is possible, using
 ### Known limitations
 
 - **Fixing the mid-composition write does not fix full-width digit leakage.** After `compositionend`, `isComposing` is `false` again, so a naive `[^0-9]` filter still strips full-width digits (`４０`) on the next `input` event. Normalize full-width characters to half-width before filtering, or move the filter to `blur`/`compositionend`.
-- **Ternary `isComposing` guard is not recognized.** Only `IfStatement` tests are checked, matching the other rules in this plugin.
+- **Ternary `isComposing` guard is not recognized.** `IfStatement` tests and bare `&&`/`||` short-circuit guards are checked, but a ternary (`isComposing ? a : b`) is not, matching the other rules in this plugin.
+- **Comparison-style guards are not recognized.** `event.isComposing` is only matched as a direct reference (optionally combined with `||`/`&&`); a comparison like `if (event.isComposing === true) return;` is not detected as a guard and will be flagged as a false positive.
 - **Only the first function parameter is inspected**, and only a plain identifier or a top-level `ObjectPattern` destructure of `target`/`currentTarget`/`isComposing` (with optional renaming). Nested destructuring (e.g. `({ target: { value } }) => ...`) is not detected.
+- **Computed member access is not recognized.** `event.target['value'] = ...` and `event['isComposing']` are not matched — only the dot-access form (`event.target.value`, `event.isComposing`) is detected, on both the write side and the guard side.
 - **No `guardFunctions` option.** Unlike `require-ime-safe-submit`/`require-ime-safe-key-events`, a shared guard helper extracted into its own function is not recognized here.
 
 ## Options

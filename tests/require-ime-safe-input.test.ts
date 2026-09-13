@@ -172,11 +172,72 @@ tester.run('require-ime-safe-input', rule, {
         event.target.value = 'x';
       }} />;`,
     },
+    // guard inside a switch case — SwitchCase.consequent is a statement list
+    // just like BlockStatement.body, so the early-exit guard must short-circuit it too
+    {
+      code: `input.addEventListener('input', (event) => {
+        switch (mode) {
+          case 'a':
+            if (event.isComposing) return;
+            event.target.value = event.target.value.replace(/[^0-9]/g, '');
+            break;
+        }
+      });`,
+    },
+    // optional chaining guard: event?.isComposing wraps the MemberExpression in ChainExpression
+    {
+      code: `input.addEventListener('input', (event) => {
+        if (event?.isComposing) return;
+        event.target.value = event.target.value.replace(/[^0-9]/g, '');
+      });`,
+    },
+    // optional chaining guard, inverted: !event?.isComposing wrapping the write
+    {
+      code: `input.addEventListener('input', (event) => {
+        if (!event?.isComposing) {
+          event.target.value = event.target.value.replace(/[^0-9]/g, '');
+        }
+      });`,
+    },
+    // optional chaining on the nativeEvent hop too
+    {
+      code: `input.addEventListener('input', (event) => {
+        if (event?.nativeEvent?.isComposing) return;
+        event.target.value = event.target.value.replace(/[^0-9]/g, '');
+      });`,
+    },
+    // guard inside try block — TryStatement.block is a real BlockStatement
+    {
+      code: `input.addEventListener('input', (event) => {
+        try {
+          if (event.isComposing) return;
+          event.target.value = event.target.value.replace(/[^0-9]/g, '');
+        } catch (err) {
+          handleError(err);
+        }
+      });`,
+    },
     // JSX onInput on <div> without contentEditable — not IME-capable
     {
       code: `<div onInput={(event) => {
         event.target.value = 'x';
       }} />;`,
+    },
+    // bare `&&` guard as a full expression statement, no `if` involved
+    {
+      code: `input.addEventListener('input', (event) => {
+        !event.isComposing && (event.target.value = event.target.value.trim());
+      });`,
+    },
+    // bare `||` guard as a full expression statement
+    {
+      code: `input.addEventListener('input', (event) => {
+        event.isComposing || (event.target.value = event.target.value.trim());
+      });`,
+    },
+    // bare `&&` guard as an expression-bodied arrow function
+    {
+      code: `input.addEventListener('input', (event) => !event.isComposing && (event.target.value = event.target.value.trim()));`,
     },
   ],
 
@@ -307,6 +368,65 @@ tester.run('require-ime-safe-input', rule, {
       code: `<textarea onInput={(event) => {
         event.target.value = event.target.value.replace(/[^0-9]/g, '');
       }} />;`,
+      errors: [{ messageId: 'requireImeSafeInput' }],
+    },
+    // switch case without a guard — still flagged
+    {
+      code: `input.addEventListener('input', (event) => {
+        switch (mode) {
+          case 'a':
+            event.target.value = event.target.value.replace(/[^0-9]/g, '');
+            break;
+        }
+      });`,
+      errors: [{ messageId: 'requireImeSafeInput' }],
+    },
+    // regression: a write placed INSIDE the wrong-direction guard's own consequent,
+    // immediately before its early-exit `return`, must still be flagged. The
+    // block-level short-circuit that treats `if (isComposing) { ...; return; }` as
+    // "safe from here on" must not skip checking that block's own contents first.
+    {
+      code: `input.addEventListener('input', (event) => {
+        if (event.isComposing) {
+          event.target.value = 'corrupted mid-composition';
+          return;
+        }
+        event.target.value = event.target.value.trim();
+      });`,
+      errors: [{ messageId: 'requireImeSafeInput' }],
+    },
+    // same regression, inside a switch case body
+    {
+      code: `input.addEventListener('input', (event) => {
+        switch (mode) {
+          case 'a':
+            if (event.isComposing) {
+              event.target.value = 'corrupted mid-composition';
+              return;
+            }
+            event.target.value = event.target.value.trim();
+            break;
+        }
+      });`,
+      errors: [{ messageId: 'requireImeSafeInput' }],
+    },
+    // expression-body arrow function handler (no block body), without guard
+    {
+      code: `input.addEventListener('input', (event) => (event.target.value = event.target.value.trim()));`,
+      errors: [{ messageId: 'requireImeSafeInput' }],
+    },
+    // wrong-direction bare `&&` guard: write only runs WHILE composing
+    {
+      code: `input.addEventListener('input', (event) => {
+        event.isComposing && (event.target.value = event.target.value.trim());
+      });`,
+      errors: [{ messageId: 'requireImeSafeInput' }],
+    },
+    // wrong-direction bare `||` guard: write only runs WHILE composing
+    {
+      code: `input.addEventListener('input', (event) => {
+        !event.isComposing || (event.target.value = event.target.value.trim());
+      });`,
       errors: [{ messageId: 'requireImeSafeInput' }],
     },
   ],

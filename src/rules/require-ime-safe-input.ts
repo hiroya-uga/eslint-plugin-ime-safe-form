@@ -1,6 +1,6 @@
 import type { Rule } from 'eslint';
 import type { BaseNode, Node } from 'estree';
-import { FUNCTION_TYPES, isImeCapableJsxElement } from './helpers';
+import { consequentHasEarlyExit, FUNCTION_TYPES, getChildNodes, isImeCapableJsxElement } from './helpers';
 import type { CustomElementsOption, JSXAttribute, JsxComponentsOption } from './helpers';
 
 const DOM_INPUT_EVENTS = new Set(['input', 'beforeinput']);
@@ -74,16 +74,19 @@ const extractEventParam = (rawParam: unknown): EventParam | undefined => {
 };
 
 const isIsComposingNode = ({ node, param }: { node: Node; param: EventParam }): boolean => {
+  // Optional chaining (`event?.isComposing`) wraps the MemberExpression in a
+  // ChainExpression; unwrap it once so the shape below still matches.
+  const target = node.type === 'ChainExpression' ? (node.expression as Node) : node;
   if (param.kind === 'destructured') {
-    return node.type === 'Identifier' && param.isComposingNames.has(node.name);
+    return target.type === 'Identifier' && param.isComposingNames.has(target.name);
   }
-  if (node.type !== 'MemberExpression' || node.computed === true) {
+  if (target.type !== 'MemberExpression' || target.computed === true) {
     return false;
   }
-  if (node.property.type !== 'Identifier' || node.property.name !== 'isComposing') {
+  if (target.property.type !== 'Identifier' || target.property.name !== 'isComposing') {
     return false;
   }
-  const root = node.object;
+  const root = target.object;
   if (root.type === 'Identifier' && root.name === param.name) {
     return true;
   }
@@ -121,20 +124,6 @@ const composingBlocksEntry = ({ node, param }: { node: Node; param: EventParam }
       composingBlocksEntry({ node: node.left as Node, param }) ||
       composingBlocksEntry({ node: node.right as Node, param })
     );
-  }
-  return false;
-};
-
-const hasEarlyExit = (ifNode: Node): boolean => {
-  if (ifNode.type !== 'IfStatement') {
-    return false;
-  }
-  const { consequent } = ifNode;
-  if (consequent.type === 'ReturnStatement' || consequent.type === 'ThrowStatement') {
-    return true;
-  }
-  if (consequent.type === 'BlockStatement') {
-    return consequent.body.some((stmt) => stmt.type === 'ReturnStatement' || stmt.type === 'ThrowStatement');
   }
   return false;
 };
@@ -189,17 +178,25 @@ const containsValueWriteOutsideGuard = ({
     return false;
   }
 
-  if (node.type === 'BlockStatement') {
-    for (const stmt of node.body) {
+  // A `switch` case body (SwitchCase.consequent) is a sequential statement list just
+  // like a BlockStatement's body, so a pure `if (isComposing) return;` guard placed
+  // directly in a case must short-circuit the rest of that case the same way.
+  if (node.type === 'BlockStatement' || node.type === 'SwitchCase') {
+    const statements = node.type === 'BlockStatement' ? node.body : node.consequent;
+    for (const stmt of statements) {
+      // Check stmt itself first: a wrong-direction guard like
+      // `if (isComposing) { write; return; }` must still have its own
+      // consequent inspected before the early-exit short-circuit below
+      // is allowed to declare the rest of the block safe.
+      if (containsValueWriteOutsideGuard({ node: stmt, param, visited })) {
+        return true;
+      }
       if (
         stmt.type === 'IfStatement' &&
         composingGuaranteesExit({ node: stmt.test as Node, param }) &&
-        hasEarlyExit(stmt)
+        consequentHasEarlyExit(stmt)
       ) {
         return false;
-      }
-      if (containsValueWriteOutsideGuard({ node: stmt, param, visited })) {
-        return true;
       }
     }
     return false;
@@ -225,26 +222,23 @@ const containsValueWriteOutsideGuard = ({
     return true;
   }
 
-  for (const [key, value] of Object.entries(node as object)) {
-    if (key === 'parent') {
-      continue;
+  // Bare `&&`/`||` used as a one-line guard outside of any `if` — e.g.
+  // `!event.isComposing && (event.target.value = ...)` or
+  // `event.isComposing || (event.target.value = ...)`. The right operand
+  // only evaluates on the non-composing path, mirroring the IfStatement
+  // `composingBlocksEntry` / `composingGuaranteesExit` branches above, so
+  // it must be treated as safe the same way an `if` guard would be.
+  if (node.type === 'LogicalExpression') {
+    const leftOperand = node.left as Node;
+    if (node.operator === '&&' && composingBlocksEntry({ node: leftOperand, param })) {
+      return false;
     }
-    if (Array.isArray(value)) {
-      for (const child of value) {
-        if (child !== null && typeof child === 'object' && 'type' in child) {
-          if (containsValueWriteOutsideGuard({ node: child as Node, param, visited })) {
-            return true;
-          }
-        }
-      }
-    } else if (value !== null && typeof value === 'object' && 'type' in value) {
-      if (containsValueWriteOutsideGuard({ node: value as Node, param, visited })) {
-        return true;
-      }
+    if (node.operator === '||' && composingGuaranteesExit({ node: leftOperand, param })) {
+      return false;
     }
   }
 
-  return false;
+  return getChildNodes(node).some((child) => containsValueWriteOutsideGuard({ node: child, param, visited }));
 };
 
 const DEFAULT_JSX_COMPONENTS: JsxComponentsOption = {
